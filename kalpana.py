@@ -748,10 +748,11 @@ for i in range(len(time_var)):
                                 ## Creating kml files for the whole domain - this is not recommended for very fne meshes ##
                                 ## due to the restrictions on the maximum number of vertices (31000) for a kml polygon object. ##
                                 ## This restriction does not allow the polygons to be plotted correctly ##
-                                for i in range(len(polys)):
-                                    polys[i] = np.vstack([polys[i],polys[i][0]])         
-                                    pol = multipol.newpolygon(name = 'Polygon'+str(i))
-                                    pol.outerboundaryis = polys[i]
+                                # Can't use i again for counting variable. it is already the counting variable for time_var loop.
+                                for ii in range(len(polys)):
+                                    polys[ii] = np.vstack([polys[ii],polys[ii][0]])
+                                    pol = multipol.newpolygon(name = 'Polygon'+str(ii))
+                                    pol.outerboundaryis = polys[ii]
                                 multipol.visibility = 1
                                 multipol.style.polystyle.fill = 1
                                 multipol.style.polystyle.color = simplekml.Color.hex(hexColorsList[m][1:])
