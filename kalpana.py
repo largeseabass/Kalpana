@@ -13,8 +13,13 @@ import simplekml
 import math
 import sys
 from optparse import OptionParser
+import os
+import atexit
+import argparse
+import subprocess
+import math
+import tempfile
 #---------------------------------------------------------------------
-##################### Carter test ####################################
 #---------------------------------------------------------------------
 # Notes:
 # 
@@ -68,6 +73,18 @@ parser.add_option("-l", "--lonlatbox", dest="l", default="36 33.5 -60 -100",help
 parser.add_option("-u", "--lonlatbuffer", dest="lonlatbuffer", default="0",help="longitude latitude buffer")
 parser.add_option("-c", "--datumconv", dest="datumconv", default="no", help="datum conversion from MSL to NAVD88 (yes or no)")
 parser.add_option("-x", "--datumtextfile", dest="datumtextfile", default="rasterdeltas_capped.txt", help="name of text file for datum conversion")
+parser.add_option("--grow", dest="grow", default="no", help="whether or not r.grow should be used (yes or no)")
+parser.add_option("--growmethod", dest="growmethod", default="without", help="choose grow method: with (with subtraction method) or without")
+parser.add_option("--createlocation", dest="createlocation", default="no", help="create a GRASS Location for use with r.grow extrapolation? (yes or no)")
+parser.add_option("--raster", dest="rastername", help="file name of raster(s) entered as a string using the format specified in http://....")#Enter website information path to Kalpana help
+parser.add_option("--resolution", dest="resolution", default=50, help="specify resolution in feet or accept current DEM resolution by entering 'align' (default=50ft.)")
+parser.add_option("--epsg", dest="myepsg", default="null", help="enter the desired state plane EPSG code for your location. EPSG codes can be found using the following link: http://spatialreference.org/ref/?page=7&search=")
+parser.add_option("--grownoutput", dest="grownoutput", default="WaterLevels_grown", help="enter a name for the final grown shapefile output")
+parser.add_option("--method", dest="createmethod", default="null", help="enter 'existing' if the GRASS location should be created using the DEM's existing datum")
+parser.add_option("--growradius", dest="growradius", default=30.01, help="enter the maximum number of cells for r.grow extrapolation")
+parser.add_option("--flooddepth", dest="flooddepth", default="no", help="display flood depth output [yes or no]")
+parser.add_option("--floodfilename", dest="floodfilename", default="flood_depth", help="name for flood depth output")
+parser.add_option("--grownfiletype", dest="grownfiletype", default="ESRI_Shapefile", help="filetype for grow and/or flooddepth output. Select from available OGR formats with GRASS GIS.")
 (options, args) = parser.parse_args()
 #nc=netCDF4.Dataset('http://opendap.renci.org:1935/thredds/dodsC/ASGS/arthur/10/nc_inundation_v9.99/hatteras.renci.org/nchi/nhcConsensus/maxele.63.nc').variables
 #'http://opendap.renci.org:1935/thredds/dodsC/tc/arthur/12/nc6b/hatteras.renci.org/nclo/nhcConsensus/maxele.63.nc'
@@ -75,6 +92,146 @@ parser.add_option("-x", "--datumtextfile", dest="datumtextfile", default="raster
 # time0 : the current time denoting the time when program run starts 
 time0=time.time()
 #
+#When --createlocation is set to yes, a GRASS Location is created for use with r.grow (--grow option) and then Kalpana exits. A location named GRASS_LOCATION is created based on the --epsg input and temporary locations are created for each DEM input specified by the --raster input. All DEMs are projected into GRASS_LOCATION and now a file called GRASS_LOCATION.zip exists which contains all of the DEMs patched into one larger DEM and uses a correct stateplane datum, specified by the --epsg input.
+if options.createlocation == "yes":
+    myepsg=options.myepsg
+    rastername=options.rastername
+    resolution=options.resolution
+    createmethod=options.createmethod
+    if ',' in rastername:
+	rastername = rastername.split(',') #If multiple input rasters exist, the input string is split into a list.
+    else:
+	rasternamestr = rastername
+	rastername = []
+	rastername.append(rasternamestr) #If one input raster exists, this is added to a list of length=1.
+
+    #Working with GRASS without starting it explicitly; using metadata only.
+    #This works assuming a linux operating system. If using a different operating system, see the website below.
+    #More information: https://grasswiki.osgeo.org/wiki/Working_with_GRASS_without_starting_it_explicitly
+    grass7bin = 'grass72'
+    startcmd = grass7bin + ' --config path'
+    p = subprocess.Popen(startcmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = p.communicate()
+    if p.returncode != 0:
+	    print >>sys.stderr, 'ERROR: %s' % err
+	    print >>sys.stderr, "ERROR: Cannot find GRASS GIS 7 start script (%s)" % startcmd
+	    sys.exit(-1)
+    gisbase = out.strip('\n')
+    os.environ['GISBASE'] = gisbase
+    gpydir = os.path.join(gisbase, "etc", "python")
+    appendir = sys.path.append(gpydir)
+    gisdb = os.path.join(os.getenv('HOME','grassdata'))
+    gisdb = os.path.join(tempfile.gettempdir(), 'grassdata')
+    location = 'GRASS_LOCATION'#Specify the name of the location which is being created
+    mapset = 'PERMANENT'
+    cwd = os.getcwd()
+    location_path = os.path.join(cwd,location)
+    if createmethod == 'existing':
+	startcmd = grass7bin + ' -c ' + rastername[0] + ' -e ' + location_path #Used for creating a location based on a raster
+    else:
+	startcmd = grass7bin + ' -c epsg:' + myepsg + ' -e ' + location_path #Used for creating a location based on an EPSG cod
+    p = subprocess.Popen(startcmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = p.communicate()
+    if p.returncode != 0:
+	print >>sys.stderr, 'ERROR: %s' % err
+	print >>sys.stderr, 'ERROR: Cannot generate location (%s)' % startcmd
+	sys.exit(-1)
+    else:
+	print 'Created location %s' % location_path
+
+    os.environ['GISDBASE'] = gisdb
+    path = os.getenv('LD_LIBRARY_PATH')
+    dir = os.path.join(gisdb, 'lib')
+    if path:
+	path = dir + os.pathsep + path
+    else:
+	path = dir
+    os.environ['LD_LIBRARY_PATH'] = path
+    os.environ['LANG'] = 'en_US'
+    os.environ['LOCALE'] = 'C'
+
+    #GRASS is now ready to be imported and used
+    import grass.script as grass
+    import grass.script.setup as gsetup
+
+    gsetup.init(gisbase, cwd, location, mapset) #Setting the GRASS working environment
+
+    #For multiple DEM inputs:
+    if len(rastername) > 1:
+	outList = []
+	if resolution != 'align':
+       	    for s in range(len(rastername)):#Iterating over each DEM
+		#Import each DEM into GRASS_LOCATION
+		grass.run_command('r.import',
+		    overwrite=True,
+		    input=rastername[s],
+		    output='ras'+str(s),
+		    resolution='value',
+		    resolution_value=resolution,
+		    resample='bilinear',
+		    extent='input')
+		outList.append('ras'+str(s))#Create a list of rasters in GRASS_LOCATION to be patched together
+	else:
+	    for s in range(len(rastername)):#Iterating over each DEM
+		#Import each DEM into GRASS_LOCATION
+		grass.run_command('r.import',
+		    overwrite=True,
+		    input=rastername[s],
+		    output='ras'+str(s))
+		rastInfo=grass.parse_command('r.info',map='ras'+str(s),flags='g',delimiter='=')
+		nsres=rastInfo['nsres']
+		ewres=rastInfo['ewres']
+		print "North/South resolution of raster #{0}: {1}".format(s,nsres)
+		print "East/West resolution of raster #{0}: {1}".format(s,ewres)
+		outList.append('ras'+str(s))#Create a list of rasters in GRASS_LOCATION to be patched together
+	    print "Warning: if DEM raster resolutions do not match, the aggregate DEM resolution will match the resolution of the first input raster (raster #0 above)."
+	#Set the computational region of GRASS_LOCATION based on the extents of the DEMs
+	grass.run_command('g.region',
+	    raster=outList,
+	    quiet=True)
+	#Patch all dems into one large DEM named 'dem'
+	grass.run_command('r.patch',
+	    input=outList,
+	    output='dem',
+	    overwrite=True,
+	    quiet=True)
+	#Remove each individual smaller DEM from GRASS_LOCATION
+	grass.run_command('g.remove',
+	    type='raster',
+	    name=outList,
+	    flags='f',
+	    quiet=True)
+    #For one DEM input:
+    elif len(rastername) == 1:
+	#For a specified or default resolution:
+	if resolution != 'align':
+	    grass.run_command('r.import',
+		overwrite=True,
+		input=rastername[0],
+		output='dem',
+		resolution='value',
+		resolution_value=resolution,
+		resample='bilinear',
+		extent='input')
+	else:
+	    #Import and automatically reproject the raster
+	    grass.run_command('r.import',
+		overwrite=True,
+		input=str(rastername[0]),
+		output='dem',
+		extent='input',
+		resolution='estimated')
+	#Set the resolution and computational region to align with the DEM
+	grass.run_command('g.region',
+	    raster='dem')
+
+    else:
+	print "Please enter the raster name using the '--raster' option."
+    os.system('zip -r GRASS_LOCATION.zip GRASS_LOCATION')#Zip GRASS_LOCATION
+    os.system('rm -fr GRASS_LOCATION')#Remove unzipped GRASS_LOCATION folder
+    print "Finished creating GRASS Location after %d seconds. GRASS_LOCATION.zip is now ready for use with r.grow extrapolation." % (time.time()-time0)
+    sys.exit(0)#Exits after --createlocation finishes creating GRASS_LOCATION
+
 # jgf: If there are no command line arguments, trigger the menu to 
 # collect input parameters interactively. Otherwise, use the command 
 # line arguments.
@@ -121,6 +278,11 @@ if options.storm == "null" :
     datumlabel = 'msl'
     specifiedticks = 'null'
     outputfile = 'null'
+    grow = 'no'
+    growmethod = 'without'
+    flooddepth = 'no'
+    floodfilename = 'flood_depth'
+    grownfiletype = 'ESRI_Shapefile'
 else:
     filetype=options.filetype
     filename=options.filename
@@ -142,6 +304,18 @@ else:
     datumlabel=options.datumlabel
     datumconv=options.datumconv
     datumtextfile=options.datumtextfile
+    grow=options.grow
+    growmethod=options.growmethod
+    grownoutput=options.grownoutput
+    flooddepth=options.flooddepth
+    floodfilename=options.floodfilename
+    grownfiletype=options.grownfiletype
+
+if grow == "yes":
+    polytype = "polygon"
+    viztype = "shapefile"
+    outputfile = "kalpana_out"
+
 # 
 # jgf: Change the input values to something more intuitive if necessary
 #print 'INFO: storm is ' + storm
@@ -343,12 +517,14 @@ if datumconv == 'yes':
 #
 # Extracting time step information from the output file 
 time_var= nc['time']
+
 #
 # startdate specifies start time of ADCIRC computations 
 startdate = time_var.units
 #
 # Converting the time step information into datetime objects 
 dtime = netCDF4.num2date(time_var[:],startdate)
+
 #
 # Converting datetime objects to string format - YYMMDDHHMMSS 
 a = []
@@ -586,7 +762,7 @@ for i in range(len(time_var)):
             ## Extracting local mesh for each long/latbox ## 
             localy,localx,localelements,localvar = createSubmeshWithinSpecifiedLatLonBox(v[0],v[1],v[2],v[3],lonlatbuffer)
             if localelements ==[]:
-                print localelements
+                #print localelements
                 continue
             ## Triangulating for each local mesh ##
             tri = matplotlib.tri.Triangulation(localx,localy,triangles=localelements)
@@ -834,3 +1010,321 @@ if viztype ==  'shapefile':
     print 'Finished generating shapefile after  %d seconds'% (time.time()-time0)
 else:
     print 'Finished generating KML file after %d seconds'% (time.time()-time0)
+
+## R.GROW OPTION ##
+if grow == 'yes':
+    os.system("unzip -q GRASS_LOCATION.zip")
+    os.system("unzip -q GRASS_LOCATION_wgs84.zip")
+
+    resolution=options.resolution
+
+    #Working with GRASS without starting it explicitly; using existing location.
+    #This works assuming a linux operating system. If using a different operating system, see the website below.
+    #More information: https://grasswiki.osgeo.org/wiki/Working_with_GRASS_without_starting_it_explicitly
+
+    grass7bin = 'grass72'
+    gisdb = os.path.expanduser("./")
+    startcmd = [grass7bin, '--config', 'path']
+    p = subprocess.Popen(startcmd, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = p.communicate()
+    if p.returncode !=0:
+	print >>sys.stderr, 'ERROR: Cannot find GRASS GIS 7 start script (%s)' % startcmd
+	sys.exit(-1)
+    gisbase = out.strip('\n\r')
+    os.environ['GISBASE'] = gisbase
+    os.environ['PATH'] += os.pathsep + os.path.join(gisbase, 'extrabin')
+    home = os.path.expanduser('./')
+    os.environ['PATH'] += os.pathsep + os.path.join(home, '.grass7', 'addons', 'scripts')
+    gpydir = os.path.join(gisbase, "etc", "python")
+    sys.path.append(gpydir)
+    os.environ['GISDBASE'] = gisdb
+
+    #GRASS is now ready to be imported
+
+    import grass.script as grass
+    import grass.script.setup as gsetup
+    from grass.exceptions import CalledModuleError
+
+    location = 'GRASS_LOCATION_wgs84'
+    mapset = 'PERMANENT'
+    gsetup.init(gisbase, gisdb, location, mapset)#Setting the GRASS working environment to GRASS_LOCATION_wgs84 (WGS84;lat/long)
+
+    print 'Finished setting up GRASS environment after %f seconds' % (time.time()-time0)
+
+    #import_kalpana.py begins:#######################################################
+
+    #Importing the shapefile generated by Kalpana
+    grass.run_command('v.in.ogr',
+	input='./kalpana_out/kalpana_out.shp',
+	min_area=10,
+	snap=0.000001,
+	overwrite=True,
+	quiet=True)
+
+    print 'Finished executing import_kalpana.py after %f minutes'% ((time.time()-time0)/60)
+
+    #kalpana_vtorast.py begins:######################################################
+    location2 = 'GRASS_LOCATION'
+
+    gsetup.init(gisbase, gisdb, location2, mapset)#Setting the GRASS working environment to GRASS_LOCATION (stateplane;ft or m)
+
+    #Takes shapefile from WGS84 location and projects it into GRASS_LOCATION.
+    grass.run_command('v.proj',
+	location='GRASS_LOCATION_wgs84',
+	mapset='PERMANENT',
+	input='kalpana_out@PERMANENT',
+	output='kalpana_vproj',
+	overwrite=True,
+	quiet=True)
+
+    #Setting computational region based on DEM.
+    grass.run_command('g.region',
+	raster='dem@PERMANENT',
+	#align='dem@PERMANENT',
+	res=resolution,
+	overwrite=True,
+	quiet=True)
+    #Converts shapefile to raster using eleavg (average elevation per Kalpana bin).
+    #Other options include elemax and elemin.
+    grass.run_command('v.to.rast',
+	input='kalpana_vproj',
+	type='area',
+	output='kalpana_rast',
+	use='attr',
+	attribute_column='eleavg',
+	overwrite=True,
+	quiet=True)
+
+    #Creates mask based on extents of DEM raster to limit area of raster operation.
+    grass.run_command('r.mask',
+	raster='dem@PERMANENT',
+	quiet=True,
+	overwrite=True)
+
+    print 'Finished executing kalpana_vtorast.py after %f minutes'% ((time.time()-time0)/60)
+
+    #Intermediate r.grow.modified steps pasted below:####################################
+
+    # what to do in case of user break: <--Not sure if this is still needed since the locations are being deleted at the end
+    def cleanup():
+	gsetup.init(gisbase, gisdb, location2, mapset)
+	for map in [temp_dist, temp_val]:
+	    if map:
+		grass.run_command('g.remove', flags='fb', quiet=True,
+				  type='rast', name=map)
+
+    #atexit.register(cleanup)
+
+    global temp_dist, temp_val
+
+    input = 'kalpana_rast@PERMANENT'
+    output = 'WaterLevels_final_binned'
+    base = 'dem@PERMANENT'
+    radius = float(options.growradius)
+    metric = 'euclidean'
+    old = ''
+    new = ''
+    mapunits = ''
+
+    tmp = str(os.getpid())
+
+    temp_dist = "r.grow.tmp.%s.dist" % tmp
+
+    shrink = False
+    if radius < 0.0:
+	shrink = True
+    radius = -radius
+
+    if new == '' and shrink == False:
+	temp_val = "r.grow.tmp.%s.val" % tmp
+	new = temp_val
+    else:
+	temp_val = None
+
+    if old == '':
+	old = input
+
+    if not mapunits:
+	kv = grass.region()
+	scale = math.sqrt(float(kv['nsres']) * float(kv['ewres']))
+	radius *= scale
+
+    if metric == 'euclidean':
+	metric = 'squared'
+	radius = radius * radius
+
+    # check if input file exists
+    if not grass.find_file(input)['file']:
+	grass.fatal(_("Raster map <%s> not found") % input)
+
+    if not grass.find_file(base)['file']:
+	grass.fatal(_("Basemap <%s> not found") % base)
+
+    if shrink == False:
+	try:
+	    grass.run_command('r.grow.distance', input=input, metric=metric,
+			      distance=temp_dist, value=temp_val)
+	except CalledModuleError:
+	    grass.fatal(_("Growing failed. Removing temporary maps."))
+
+	grass.mapcalc(
+	    "$output = if(!isnull($input),$old,if($dist < $radius && $base < $new,$new,null()))",
+	    output=output, input=input, radius=radius, base=base,
+	    old=old, new=new, dist=temp_dist)
+    else:
+	# shrink
+	try:
+	    grass.run_command('r.grow.distance', input=input, metric=metric,
+			      distance=temp_dist, value=temp_val, flags='n')
+	except CalledModuleError:
+	    grass.fatal(_("Shrinking failed. Removing temporary maps."))
+
+	grass.mapcalc(
+	    "$output = if($dist < $radius,null(),$old)",
+	    output=output, radius=radius, old=old, dist=temp_dist)
+
+    # grass.run_command('r.colors', map=output, raster=input)
+
+    # write cmd history:
+    #grass.raster_history(output)
+
+    print 'Finished executing r.grow.modified.py after %f minutes'% ((time.time()-time0)/60)
+
+    #Intermediate grow_process.py steps pasted below: ######################################
+
+    # Gives all non-null cells in grown raster a single uniform value (-1).
+    grass.mapcalc("$output = if(!isnull($input),-1,null())",
+		  output='tempmap',
+		  input='WaterLevels_final_binned',
+		  quiet=True,
+		  overwrite=True)
+
+    # Groups the uniform raster by giving each connected group of cells a unique ID.
+    # The goal is to remove isolated clumps not connected to original raster.
+    grass.run_command('r.clump',
+		      input='tempmap',
+		      output='clumpmap',
+		      quiet=True,
+		      overwrite=True)
+
+    # Identifies original clumps found in the ADCIRC raster.
+    grass.mapcalc("$output = if(!isnull($A) && !isnull($B),$B,null())",
+		  output='tempmap',
+		  A='kalpana_rast',
+		  B='clumpmap',
+		  quiet=True,
+		  overwrite=True)
+
+    # Sorts clump areas largest to smallest, removes largest clump (null clump).
+    # List format: [clump1, #cells1, clump2, #cells2, ...].
+    areas=grass.read_command('r.stats',
+			     input='tempmap',
+			     sort='desc',
+			     flags='c',
+			     quiet=True).split()
+    if areas[0] == '*':
+	areas = areas[2:]
+    else:
+	areas.remove(areas[2])
+	areas.remove(areas[2])
+
+    # Loops over #cells in each clump, starting with largest. Stops when #cells < 50
+    # and deletes all remaining smaller clumps. This step is necessary only because
+    # the following step cannot handle such a list of areas. Vast majority of areas
+    # that will be kept are connected to the large, original ADCIRC raster.
+    cutoff = len(areas)
+    for i in range(1,len(areas),2):
+	if int(areas[i]) < 50:
+	    cutoff = i - 1
+	    break
+    areas = areas[:cutoff]
+
+    # Assigns uniform value (-1) to all areas that include and are connected to
+    # original ADCIRC raster (r.reclass requires a list of rules as str)
+    reclasslist = ''
+    for i in range(0,len(areas),2):
+	reclasslist += areas[i] + ' '
+    reclasslist += '= -1'
+    grass.write_command('r.reclass',
+			input='clumpmap',
+			output='tempmap',
+			rules='-',
+			stdin=reclasslist,
+			quiet=True,
+			overwrite=True)
+
+    # Passes back grown ADCIRC cells if they coincide with the assigned value (-1).
+    grass.mapcalc("$output = if($A == -1,$B,null())",
+
+		  output='storm_final',
+		  A='tempmap',
+		  B='WaterLevels_final_binned',
+		  quiet=True,
+		  overwrite=True)
+
+    # Keyword 'with' means ADCIRC cells with values lower than the land surface
+    # elevation will be removed
+    if growmethod == 'with':
+	grass.mapcalc("$output = if($adcirc < $dem, null(), $adcirc)",
+		      output='storm_final_less_errors',
+		      adcirc='storm_final',
+		      dem='dem',
+		      quiet=True,
+		      overwrite=True)
+	grass.run_command('g.rename',
+		      raster=('storm_final_less_errors','storm_final'),
+		      overwrite=True,
+		      quiet=True)
+
+    # Rounds each new ADCIRC cell value to the nearest 0.5
+    grass.mapcalc("$output = if($adcirc - int($adcirc) > 0.5,int($adcirc) + 1.0,int($adcirc) + 0.5)",
+		  output='storm_final_binned',
+		  adcirc='storm_final',
+		  quiet=True,
+		  overwrite=True)
+
+    #Flood depth visualization option
+    if flooddepth == "yes":
+	grass.mapcalc("flood_depth=if(storm_final_binned,storm_final_binned-dem)",
+	    overwrite=True)
+	grass.run_command('r.to.vect',
+	    input='flood_depth',
+	    output='flood_depth',
+	    type='area',
+	    flags='s',
+	    quiet=True,
+	    overwrite=True)
+	grass.run_command('v.out.ogr',
+	    input='flood_depth',
+	    output=floodfilename,
+	    type='area',
+	    format=grownfiletype,
+	    flags='se',
+	    quiet=True,
+	    overwrite=True)
+	print 'Created {0} after {1} minutes'.format(floodfilename,float((time.time()-time0)/60))
+
+    #converts binned raster to polygons
+    grass.run_command('r.to.vect',
+		      input='storm_final_binned',
+		      output=grownoutput,
+		      type='area',
+		      flags='s',
+		      quiet=True,
+		      overwrite=True)
+
+    #exports to ESRI shapefile
+    grass.run_command('v.out.ogr',
+		      input=grownoutput,
+		      output=grownoutput,
+		      type='area',
+		      format=grownfiletype,
+		      flags='se',
+		      quiet=True,
+		      overwrite=True)
+
+    print 'Finished executing grow_process.py after %f minutes'% ((time.time()-time0)/60)
+
+    os.system("zip -r {0}.zip {0}".format(grownoutput))
+    os.system("rm -fr GRASS_LOCATION_wgs84 {0} kalpana_out".format(grownoutput))#GRASS_LOCATION
+
