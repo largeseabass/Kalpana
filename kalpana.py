@@ -80,10 +80,9 @@ parser.add_option("--raster", dest="rastername", help="file name of raster(s) en
 parser.add_option("--resolution", dest="resolution", default=50, help="specify resolution in feet or accept current DEM resolution by entering 'align' (default=50ft.)")
 parser.add_option("--epsg", dest="myepsg", default="null", help="enter the desired state plane EPSG code for your location. EPSG codes can be found using the following link: http://spatialreference.org/ref/?page=7&search=")
 parser.add_option("--grownoutput", dest="grownoutput", default="WaterLevels_grown", help="enter a name for the final grown shapefile output")
-parser.add_option("--method", dest="createmethod", default="null", help="enter 'existing' if the GRASS location should be created using the DEM's existing datum")
+parser.add_option("--createmethod", dest="createmethod", default="null", help="enter 'existing' if the GRASS location should be created using the DEM's existing datum")
 parser.add_option("--growradius", dest="growradius", default=30.01, help="enter the maximum number of cells for r.grow extrapolation")
 parser.add_option("--flooddepth", dest="flooddepth", default="no", help="display flood depth output [yes or no]")
-parser.add_option("--floodfilename", dest="floodfilename", default="flood_depth", help="name for flood depth output")
 parser.add_option("--grownfiletype", dest="grownfiletype", default="ESRI_Shapefile", help="filetype for grow and/or flooddepth output. Select from available OGR formats with GRASS GIS.")
 (options, args) = parser.parse_args()
 #nc=netCDF4.Dataset('http://opendap.renci.org:1935/thredds/dodsC/ASGS/arthur/10/nc_inundation_v9.99/hatteras.renci.org/nchi/nhcConsensus/maxele.63.nc').variables
@@ -281,7 +280,6 @@ if options.storm == "null" :
     grow = 'no'
     growmethod = 'without'
     flooddepth = 'no'
-    floodfilename = 'flood_depth'
     grownfiletype = 'ESRI_Shapefile'
 else:
     filetype=options.filetype
@@ -308,7 +306,6 @@ else:
     growmethod=options.growmethod
     grownoutput=options.grownoutput
     flooddepth=options.flooddepth
-    floodfilename=options.floodfilename
     grownfiletype=options.grownfiletype
 
 if grow == "yes":
@@ -1285,46 +1282,41 @@ if grow == 'yes':
 
     #Flood depth visualization option
     if flooddepth == "yes":
+	#Take the difference between flood elevation and land elevation where flooding occurs
 	grass.mapcalc("flood_depth=if(storm_final_binned,storm_final_binned-dem)",
 	    overwrite=True)
-	grass.run_command('r.to.vect',
-	    input='flood_depth',
-	    output='flood_depth',
-	    type='area',
-	    flags='s',
-	    quiet=True,
+	grass.run_command('r.out.ogr',
+	    input='flood_depth@PERMANENT',
+	    format='GTiff',
+	    output=grownoutput,
 	    overwrite=True)
-	grass.run_command('v.out.ogr',
-	    input='flood_depth',
-	    output=floodfilename,
-	    type='area',
-	    format=grownfiletype,
-	    flags='se',
-	    quiet=True,
-	    overwrite=True)
-	print 'Created {0} after {1} minutes'.format(floodfilename,float((time.time()-time0)/60))
+	print 'Created {0} after {1} minutes'.format(grownoutput,float((time.time()-time0)/60))
+	print 'Warning: user may be required to add file extension to {0}'.format(grownoutput)
+	print 'Finished executing grow_process.py after %f minutes'% ((time.time()-time0)/60)
+	#Zip output and remove extraneous folders
+	os.system("zip -r {0}.zip {0}".format(grownoutput))
 
-    #converts binned raster to polygons
-    grass.run_command('r.to.vect',
-		      input='storm_final_binned',
-		      output=grownoutput,
-		      type='area',
-		      flags='s',
-		      quiet=True,
-		      overwrite=True)
+    else:
+        #Converts binned raster to polygons
+        grass.run_command('r.to.vect',
+	  	          input='storm_final_binned',
+		          output=grownoutput,
+		          type='area',
+		          flags='s',
+		          quiet=True,
+		          overwrite=True)
 
-    #exports to ESRI shapefile
-    grass.run_command('v.out.ogr',
-		      input=grownoutput,
-		      output=grownoutput,
-		      type='area',
-		      format=grownfiletype,
-		      flags='se',
-		      quiet=True,
-		      overwrite=True)
+        #Export to a useful format specified in grownfiletype; defaul is ESRI shapefile
+        grass.run_command('v.out.ogr',
+		          input=grownoutput,
+		          output=grownoutput,
+		          type='area',
+		          format=grownfiletype,
+		          flags='se',
+		          quiet=True,
+		          overwrite=True)
 
-    print 'Finished executing grow_process.py after %f minutes'% ((time.time()-time0)/60)
-
-    os.system("zip -r {0}.zip {0}".format(grownoutput))
-    os.system("rm -fr GRASS_LOCATION_wgs84 {0} kalpana_out".format(grownoutput))#GRASS_LOCATION
-
+        print 'Finished executing grow_process.py after %f minutes'% ((time.time()-time0)/60)
+	#Zip output and remove extranous folders
+        os.system("zip -r {0}.zip {0}".format(grownoutput))
+        os.system("rm -fr GRASS_LOCATION_wgs84 {0} kalpana_out".format(grownoutput))#GRASS_LOCATION
