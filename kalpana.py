@@ -1058,8 +1058,6 @@ if grow == 'yes':
 	overwrite=True,
 	quiet=True)
 
-    print 'Finished executing import_kalpana.py after %f minutes'% ((time.time()-time0)/60)
-
     #kalpana_vtorast.py begins:######################################################
     location2 = 'GRASS_LOCATION'
 
@@ -1077,7 +1075,6 @@ if grow == 'yes':
     #Setting computational region based on DEM.
     grass.run_command('g.region',
 	raster='dem@PERMANENT',
-	#align='dem@PERMANENT',
 	res=resolution,
 	overwrite=True,
 	quiet=True)
@@ -1098,7 +1095,7 @@ if grow == 'yes':
 	quiet=True,
 	overwrite=True)
 
-    print 'Finished executing kalpana_vtorast.py after %f minutes'% ((time.time()-time0)/60)
+    print 'Finished converting water levels to raster format after %f minutes'% ((time.time()-time0)/60)
 
     #Intermediate r.grow.modified steps pasted below:####################################
 
@@ -1185,7 +1182,7 @@ if grow == 'yes':
     # write cmd history:
     #grass.raster_history(output)
 
-    print 'Finished executing r.grow.modified.py after %f minutes'% ((time.time()-time0)/60)
+    print 'Finished setting up data for r.grow process after %f minutes'% ((time.time()-time0)/60)
 
     #Intermediate grow_process.py steps pasted below: ######################################
 
@@ -1280,21 +1277,20 @@ if grow == 'yes':
 		  quiet=True,
 		  overwrite=True)
 
+    print 'Finished executing r.grow after %f minutes' % ((time.time()-time0)/60)
+
     #Flood depth visualization option
     if flooddepth == "yes":
 	#Take the difference between flood elevation and land elevation where flooding occurs
 	grass.mapcalc("flood_depth=if(storm_final_binned,storm_final_binned-dem)",
 	    overwrite=True)
-	grass.run_command('r.out.ogr',
-	    input='flood_depth@PERMANENT',
+	grass.run_command('r.out.gdal',
+	    input='flood_depth',
 	    format='GTiff',
-	    output=grownoutput,
+	    nodata=-9999,
+	    output=grownoutput+'.tif',
 	    overwrite=True)
-	print 'Created {0} after {1} minutes'.format(grownoutput,float((time.time()-time0)/60))
-	print 'Warning: user may be required to add file extension to {0}'.format(grownoutput)
-	print 'Finished executing grow_process.py after %f minutes'% ((time.time()-time0)/60)
-	#Zip output and remove extraneous folders
-	os.system("zip -r {0}.zip {0}".format(grownoutput))
+	print 'Finished creating {0} after {1} minutes'.format(grownoutput,float((time.time()-time0)/60))
 
     else:
         #Converts binned raster to polygons
@@ -1316,7 +1312,10 @@ if grow == 'yes':
 		          quiet=True,
 		          overwrite=True)
 
-        print 'Finished executing grow_process.py after %f minutes'% ((time.time()-time0)/60)
-	#Zip output and remove extranous folders
+        print 'Finished creating {0} after {1} minutes'.format(grownoutput,float((time.time()-time0)/60))
+###	#Zip output and remove extranous folders ###Pay attention to output type; it's possible not all grownfiletypes can be zipped.
         os.system("zip -r {0}.zip {0}".format(grownoutput))
-        os.system("rm -fr GRASS_LOCATION_wgs84 {0} kalpana_out".format(grownoutput))#GRASS_LOCATION
+        os.system("rm -fr GRASS_LOCATION_wgs84 GRASS_LOCATION kalpana_out {0}".format(grownoutput))
+	if grownfiletype != 'ESRI_Shapefile':
+	    print 'USER WARNING: User may be required to specify file extension for {0}'.format(grownoutput)
+
