@@ -1046,7 +1046,7 @@ if grow == 'yes':
     mapset = 'PERMANENT'
     gsetup.init(gisbase, gisdb, location, mapset)#Setting the GRASS working environment to GRASS_LOCATION_wgs84 (WGS84;lat/long)
 
-    print 'Finished setting up GRASS environment after %f seconds' % (time.time()-time0)
+    print 'Finished setting up GRASS environment after {0:.2f} seconds'.format(time.time()-time0)
 
     #import_kalpana.py begins:#######################################################
 
@@ -1095,7 +1095,7 @@ if grow == 'yes':
 	quiet=True,
 	overwrite=True)
 
-    print 'Finished converting water levels to raster format after %f minutes'% ((time.time()-time0)/60)
+    print 'Finished converting water levels to raster format after {0:.2f} minutes'.format((time.time()-time0)/60)
 
     #Intermediate r.grow.modified steps pasted below:####################################
 
@@ -1182,7 +1182,7 @@ if grow == 'yes':
     # write cmd history:
     #grass.raster_history(output)
 
-    print 'Finished setting up data for r.grow process after %f minutes'% ((time.time()-time0)/60)
+    print 'Finished setting up data for r.grow process after {0:.2f} minutes'.format((time.time()-time0)/60)
 
     #Intermediate grow_process.py steps pasted below: ######################################
 
@@ -1270,27 +1270,29 @@ if grow == 'yes':
 		      overwrite=True,
 		      quiet=True)
 
-    # Rounds each new ADCIRC cell value to the nearest 0.5
-    grass.mapcalc("$output = if($adcirc - int($adcirc) > 0.5,int($adcirc) + 1.0,int($adcirc) + 0.5)",
-		  output='storm_final_binned',
-		  adcirc='storm_final',
-		  quiet=True,
-		  overwrite=True)
+    if flooddepth != "yes":
+        # Rounds each new ADCIRC cell value to the nearest 0.5
+        grass.mapcalc("$output = if($adcirc - int($adcirc) > 0.5,int($adcirc) + 1.0,int($adcirc) + 0.5)",
+	    	      output='storm_final_binned',
+		      adcirc='storm_final',
+		      quiet=True,
+		      overwrite=True)
 
-    print 'Finished executing r.grow after %f minutes' % ((time.time()-time0)/60)
+    print 'Finished executing r.grow after {0:.2f} minutes'.format((time.time()-time0)/60)
 
     #Flood depth visualization option
     if flooddepth == "yes":
 	#Take the difference between flood elevation and land elevation where flooding occurs
-	grass.mapcalc("flood_depth=if(storm_final_binned,storm_final_binned-dem)",
+	grass.mapcalc("flood_depth=if(dem>0,storm_final-dem,null())",
 	    overwrite=True)
 	grass.run_command('r.out.gdal',
 	    input='flood_depth',
+	    flags='m',
 	    format='GTiff',
 	    nodata=-9999,
 	    output=grownoutput+'.tif',
 	    overwrite=True)
-	print 'Finished creating {0} after {1} minutes'.format(grownoutput,float((time.time()-time0)/60))
+	print 'Finished creating {0}.tif after {1:.2f} minutes'.format(grownoutput,float((time.time()-time0)/60))
 
     else:
         #Converts binned raster to polygons
@@ -1312,10 +1314,10 @@ if grow == 'yes':
 		          quiet=True,
 		          overwrite=True)
 
-        print 'Finished creating {0} after {1} minutes'.format(grownoutput,float((time.time()-time0)/60))
+        print 'Finished creating {0} after {1:.2f} minutes'.format(grownoutput,float((time.time()-time0)/60))
 ###	#Zip output and remove extranous folders ###Pay attention to output type; it's possible not all grownfiletypes can be zipped.
-        os.system("zip -r {0}.zip {0}".format(grownoutput))
-        os.system("rm -fr GRASS_LOCATION_wgs84 GRASS_LOCATION kalpana_out {0}".format(grownoutput))
-	if grownfiletype != 'ESRI_Shapefile':
-	    print 'USER WARNING: User may be required to specify file extension for {0}'.format(grownoutput)
+    os.system("zip -r {0}.zip {0}".format(grownoutput))
+    os.system("rm -fr GRASS_LOCATION_wgs84 GRASS_LOCATION kalpana_out {0}".format(grownoutput))
+    if grownfiletype != 'ESRI_Shapefile':
+	print 'USER WARNING: User may be required to specify file extension for {0}'.format(grownoutput)
 
