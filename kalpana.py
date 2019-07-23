@@ -358,7 +358,7 @@ if viztype ==  'kmz':
     #print bins
 #
 fileTypesColorBarNames = { 'maxele.63.nc' : 'Colorbar-water-levels.png', 'swan_HS_max.63.nc' : 'Colorbar-wave-heights.png', 'maxwvel.63.nc' : 'Colorbar-wind-speeds.png', 'swan_TPS_max.63.nc' : 'Colorbar-wave-periods.png', 'bathytopo' : 'Colorbar-bathymetry.png' }
-fileTypesNetCDFVarNames = { 'bathytopo' : 'depth', 'maxele.63.nc' : 'zeta_max', 'maxwvel.63.nc' : 'wind_max', 'swan_HS_max.63.nc' : 'swan_HS_max', 'fort.63.nc' : 'zeta', 'fort.74.nc' : [ 'windx', 'windy' ], 'swan_HS.63.nc' : 'swan_HS', 'swan_TPS_max.63.nc' : 'swan_TPS_max', 'swan_TPS.63.nc' : 'swan_TPS', 'swan_TMM10.63.nc' : 'swan_TMM10' }
+fileTypesNetCDFVarNames = { 'bathytopo' : 'depth', 'maxele.63.nc' : 'zeta_max', 'maxwvel.63.nc' : 'wind_max', 'swan_HS_max.63.nc' : 'swan_HS_max', 'fort.63.nc' : 'zeta', 'fort.74.nc' : [ 'windx', 'windy' ], 'swan_HS.63.nc' : 'swan_HS', 'swan_TPS_max.63.nc' : 'swan_TPS_max', 'swan_TPS.63.nc' : 'swan_TPS', 'swan_TMM10.63.nc' : 'swan_TMM10' }#######Step can be surpassed in sample maxele if zeta_max is changed to maxele after key 'maxele.63.nc'
 fileTypesDefaultPaletteFileNames = { 'bathytopo' : 'mesh-bathy.pal', 'maxele.63.nc' : 'water-level.pal', 'maxwvel.63.nc' : 'wind-speed.pal', 'swan_HS_max.63.nc' : 'wavht.pal', 'swan_TPS_max.63.nc' : 'wavht.pal' }       
 fileTypesKMLFolderNames = { 'bathytopo' : 'Bathymetry', 'maxele.63.nc' : 'Maximum-Water-Levels', 'maxwvel.63.nc' : 'Maximum Wind Velocity', 'swan_HS_max.63.nc' : 'Maximum-Wave-Heights', 'swan_TPS_max.63.nc' : 'Maximum-Wave-Period' }
 fileTypesDefaultOutputShapeFileNames = { 'bathytopo' : 'mesh-bathy', 'maxele.63.nc' : 'water-level', 'maxwvel.63.nc' : 'wind-speed','swan_HS_max.63.nc' : 'wave-height', 'fort.63.nc' : 'nodalelev'+'_'+ polytype + '_'+ str(storm), 'fort.74.nc' : 'nodalwvel'+'_'+ polytype + '_'+ str(storm), 'swan_HS.63.nc' : 'nodalwavht'+'_'+ polytype + '_'+ str(storm), 'swan_TPS_max.63.nc' : 'wave-period', 'swan_TPS.63.nc' :  'nodalpeakpd'+'_'+polytype+'_'+str(storm), 'swan_TMM10.63.nc' : 'avgpd'+'_'+polytype+'_'+str(storm) }    
@@ -728,7 +728,7 @@ def reverseGeometry(p):
 ## To calculate the signed area of an irregular polyon ##
 def signedArea(ring):
     """Return the signed area enclosed by a ring in linear time using the 
-    algorithm at: http://www.cgafaq.info/wiki/Polygon_Area.
+    algorithm at: https://web.archive.org/web/20080209143651/http://cgafaq.info:80/wiki/Polygon_Area.
     """
     v2 = np.roll(ring, -1, axis=0)
     return np.cross(ring, v2).sum() / 2.0
@@ -1013,8 +1013,6 @@ if grow == 'yes':
     os.system("unzip -q GRASS_LOCATION.zip")
     os.system("unzip -q GRASS_LOCATION_wgs84.zip")
 
-    resolution=options.resolution
-
     #Working with GRASS without starting it explicitly; using existing location.
     #This works assuming a linux operating system. If using a different operating system, see the website below.
     #More information: https://grasswiki.osgeo.org/wiki/Working_with_GRASS_without_starting_it_explicitly
@@ -1072,10 +1070,16 @@ if grow == 'yes':
 	overwrite=True,
 	quiet=True)
 
+    #Read EW and NS resolution
+    reg=grass.read_command('g.region',flags='g').split()
+    ewresReg=float(reg[7].split("=")[1])
+    nsresReg=float(reg[6].split("=")[1])
+
     #Setting computational region based on DEM.
     grass.run_command('g.region',
 	raster='dem@PERMANENT',
-	res=resolution,
+        nsres=nsresReg,
+        ewres=ewresReg,
 	overwrite=True,
 	quiet=True)
     #Converts shapefile to raster using eleavg (average elevation per Kalpana bin).
