@@ -82,8 +82,9 @@ parser.add_option("--epsg", dest="myepsg", default="null", help="enter the desir
 parser.add_option("--grownoutput", dest="grownoutput", default="WaterLevels_grown", help="enter a name for the final grown shapefile output")
 parser.add_option("--createmethod", dest="createmethod", default="null", help="enter 'existing' if the GRASS location should be created using the DEM's existing datum")
 parser.add_option("--growradius", dest="growradius", default=30.01, help="enter the maximum number of cells for r.grow extrapolation")
-parser.add_option("--flooddepth", dest="flooddepth", default="no", help="display flood depth output [yes or no]")
+parser.add_option("--flooddepth", dest="flooddepth", default="no", help="display flood depth output (yes or no)")
 parser.add_option("--grownfiletype", dest="grownfiletype", default="ESRI_Shapefile", help="filetype for grow and/or flooddepth output. Select from available OGR formats with GRASS GIS.")
+parser.add_option("--vunitconv", dest="vunitconv", default="no", help="convert vertical units? (no or m2ft or ft2m)")
 (options, args) = parser.parse_args()
 #nc=netCDF4.Dataset('http://opendap.renci.org:1935/thredds/dodsC/ASGS/arthur/10/nc_inundation_v9.99/hatteras.renci.org/nchi/nhcConsensus/maxele.63.nc').variables
 #'http://opendap.renci.org:1935/thredds/dodsC/tc/arthur/12/nc6b/hatteras.renci.org/nclo/nhcConsensus/maxele.63.nc'
@@ -97,6 +98,7 @@ if options.createlocation == "yes":
     rastername=options.rastername
     resolution=options.resolution
     createmethod=options.createmethod
+    vunitconv=options.vunitconv
     if ',' in rastername:
 	rastername = rastername.split(',') #If multiple input rasters exist, the input string is split into a list.
     else:
@@ -181,8 +183,6 @@ if options.createlocation == "yes":
 		nsres=rastInfo['nsres']
 		ewres=rastInfo['ewres']
 		print "North/South resolution of raster #{0}: {1}".format(s,nsres)
-		print "East/West resolution of raster #{0}: {1}".format(s,ewres)
-		outList.append('ras'+str(s))#Create a list of rasters in GRASS_LOCATION to be patched together
 	    print "Warning: if DEM raster resolutions do not match, the aggregate DEM resolution will match the resolution of the first input raster (raster #0 above)."
 	#Set the computational region of GRASS_LOCATION based on the extents of the DEMs
 	grass.run_command('g.region',
@@ -226,6 +226,28 @@ if options.createlocation == "yes":
 
     else:
 	print "Please enter the raster name using the '--raster' option."
+    #Vertical unit conversion
+    #Convert meters to feet
+    if vunitconv=="m2ft":
+        grass.run_command('g.rename',raster="dem,demPreConv")
+        grass.mapcalc("$output=if(!isnull($demPreConv),$demPreConv*3.2808399,null())",
+            output="dem",
+            demPreConv="demPreConv@PERMANENT",
+            overwrite=True,
+            quiet=True)
+        grass.run_command('g.remove',flags="f",type="all",name="demPreConv")
+        print "Vertical units converted from meters to feet."
+    #Convert feet to meters
+    elif vunitconv=="ft2m":
+        grass.run_command('g.rename',raster="dem,demPreConv")
+        grass.mapcalc("$output=if(!isnull($demPreConv),$demPreConv/3.2808399,null())",
+            output="dem",
+            demPreConv="demPreConv@PERMANENT",
+            overwrite=True,
+            quiet=True)
+        grass.run_command('g.remove',flags="f",type="all",name="demPreConv")
+        print "Vertical units converted from feet to meters."
+
     os.system('zip -r GRASS_LOCATION.zip GRASS_LOCATION')#Zip GRASS_LOCATION
     os.system('rm -fr GRASS_LOCATION')#Remove unzipped GRASS_LOCATION folder
     print "Finished creating GRASS Location after %d seconds. GRASS_LOCATION.zip is now ready for use with r.grow extrapolation." % (time.time()-time0)
