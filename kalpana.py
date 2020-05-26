@@ -19,6 +19,7 @@ import argparse
 import subprocess
 import math
 import tempfile
+from zipfile import ZipFile
 #---------------------------------------------------------------------
 #---------------------------------------------------------------------
 # Notes:
@@ -73,7 +74,7 @@ parser.add_option("-l", "--lonlatbox", dest="l", default="36 33.5 -60 -100",help
 parser.add_option("-u", "--lonlatbuffer", dest="lonlatbuffer", default="0",help="longitude latitude buffer")
 parser.add_option("-c", "--datumconv", dest="datumconv", default="no", help="datum conversion from MSL to NAVD88 (yes or no)")
 parser.add_option("-x", "--datumtextfile", dest="datumtextfile", default="rasterdeltas_capped.txt", help="name of text file for datum conversion")
-parser.add_option("--grow", dest="grow", default="no", help="whether or not r.grow should be used (yes or no)")
+parser.add_option("--grow", dest="grow", default="no", help="specify downscaling method; leave as [no] if downscaling is not desired")
 parser.add_option("--growmethod", dest="growmethod", default="without", help="choose grow method: with (with subtraction method) or without")
 parser.add_option("--createlocation", dest="createlocation", default="no", help="create a GRASS Location for use with r.grow extrapolation? (yes or no)")
 parser.add_option("--raster", dest="rastername", help="file name of raster(s) entered as a string using the format specified in http://....")#Enter website information path to Kalpana help
@@ -85,6 +86,11 @@ parser.add_option("--growradius", dest="growradius", default=30.01, help="enter 
 parser.add_option("--flooddepth", dest="flooddepth", default="no", help="display flood depth output (yes or no)")
 parser.add_option("--grownfiletype", dest="grownfiletype", default="ESRI_Shapefile", help="filetype for grow and/or flooddepth output. Select from available OGR formats with GRASS GIS.")
 parser.add_option("--vunitconv", dest="vunitconv", default="no", help="convert vertical units? (no or m2ft or ft2m)")
+parser.add_option("--createcostsurface", dest="createcostsurface", default="no", help="Create a cost surface for use with the head loss method?")
+parser.add_option("--landcoverraster", dest="landcoverraster", default="NLCD2016", help="specify land cover classification raster")
+parser.add_option("--numcols", dest="numcols", default=5, help="enter the number of columns for r.walk iterative endpoints")
+parser.add_option("--urconst", dest="urconst", default=1, help="enter the constant used for U/R^(2/3) for use in cost surface generation")
+parser.add_option("--fricexagval", dest="fricexagval", default=1, help="enter the friction exaggeration multiplying factor")
 (options, args) = parser.parse_args()
 #nc=netCDF4.Dataset('http://opendap.renci.org:1935/thredds/dodsC/ASGS/arthur/10/nc_inundation_v9.99/hatteras.renci.org/nchi/nhcConsensus/maxele.63.nc').variables
 #'http://opendap.renci.org:1935/thredds/dodsC/tc/arthur/12/nc6b/hatteras.renci.org/nclo/nhcConsensus/maxele.63.nc'
@@ -248,10 +254,309 @@ if options.createlocation == "yes":
         grass.run_command('g.remove',flags="f",type="all",name="demPreConv")
         print "Vertical units converted from feet to meters."
 
-    os.system('zip -r GRASS_LOCATION.zip GRASS_LOCATION')#Zip GRASS_LOCATION
+    os.system('zip -rq GRASS_LOCATION.zip GRASS_LOCATION')#Zip GRASS_LOCATION
     os.system('rm -fr GRASS_LOCATION')#Remove unzipped GRASS_LOCATION folder
     print "Finished creating GRASS Location after %d seconds. GRASS_LOCATION.zip is now ready for use with r.grow extrapolation." % (time.time()-time0)
     sys.exit(0)#Exits after --createlocation finishes creating GRASS_LOCATION
+
+if options.createcostsurface == "yes":
+    landcoverraster=options.landcoverraster
+    numcols=int(options.numcols)
+    urconst=float(options.urconst)
+    os.system("unzip -q GRASS_LOCATION.zip")
+    #CALL INSTANCE OF GRASS, indent everything below this line.
+    #Working with GRASS without starting it explicitly; using existing location.
+    #This works assuming a linux operating system. If using a different operating system, see the website below.
+    #More information: https://grasswiki.osgeo.org/wiki/Working_with_GRASS_without_starting_it_explicitly
+    grass7bin = 'grass72'
+    gisdb = os.path.expanduser("./")
+    startcmd = [grass7bin, '--config', 'path']
+    p = subprocess.Popen(startcmd, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = p.communicate()
+    if p.returncode !=0:
+        print >>sys.stderr, 'ERROR: Cannot find GRASS GIS 7 start script (%s)' % startcmd
+        sys.exit(-1)
+    gisbase = out.strip('\n\r')
+    os.environ['GISBASE'] = gisbase
+    os.environ['PATH'] += os.pathsep + os.path.join(gisbase, 'extrabin')
+    home = os.path.expanduser('./')
+    os.environ['PATH'] += os.pathsep + os.path.join(home, '.grass7', 'addons', 'scripts')
+    gpydir = os.path.join(gisbase, "etc", "python")
+    sys.path.append(gpydir)
+    os.environ['GISDBASE'] = gisdb
+
+    #GRASS is now ready to be imported
+
+    import grass.script as grass
+    import grass.script.setup as gsetup
+    from grass.exceptions import CalledModuleError
+
+    location = 'GRASS_LOCATION'
+    mapset = 'PERMANENT'
+    gsetup.init(gisbase, gisdb, location, mapset)#Setting the GRASS working environment to GRASS_LOCATION_wgs84 (WGS84;lat/long)
+
+    #print 'Finished setting up GRASS environment after {0:.2f} seconds'.format(time.time()-time0)
+
+    #Mask all future operations by extents of the dem
+    grass.run_command("r.mask",
+        raster="dem@PERMANENT",
+        overwrite=True,
+        quiet=True)
+
+    grass.run_command('g.message',message="Begin importing land cover raster.")
+
+    #Ask for land cover classification raster
+    if landcoverraster=="NLCD2016":
+        try:
+            os.system("wget -q -t 3 https://s3-us-west-2.amazonaws.com/mrlc/NLCD_2016_Land_Cover_L48_20190424.zip")
+            zf=ZipFile("./NLCD_2016_Land_Cover_L48_20190424.zip")
+            zf.extractall(path="./")
+            zf.close()
+        except IOError:
+            print "Could not connect to server after 3 tries. Attempt to download NLCD raster failed. Please check firewalls or manually download a land cover raster."
+            sys.exit(0)
+        #Import NLCD raster from unzipped data
+        grass.run_command('r.import',
+            overwrite=True,
+            quiet=True,
+            input="./NLCD_2016_Land_Cover_L48_20190424.img",
+            output="landCoverClass",
+            resolution="region",
+            resample="nearest",
+            extent="region")
+    else:
+        #Import land cover classification raster
+        grass.run_command('r.import',
+            overwrite=True,
+            quiet=True,
+            input=landcoverraster,
+            output="landCoverClass",
+            resolution="region",
+            resample="nearest",
+            extent="region")
+    #Reclassify land cover classification data to manning value * 10000
+    #Multiplication by 10000 is necessary because r.reclass only accepts integers
+    grass.run_command('r.reclass',
+        overwrite=True,
+        quiet=True,
+        input="landCoverClass@PERMANENT",
+        output="manningInteger",
+        rules="./landCover_manning.txt")
+    #Divide by 10000.0 to convert manning data to decimal values
+    grass.mapcalc("$output=if(!isnull($manningInteger),$manningInteger/10000.0,null())",
+        overwrite=True,
+        quiet=True,
+        output="manning",
+        manningInteger="manningInteger@PERMANENT")
+
+    grass.run_command('g.message',message="Land cover raster imported. Begin setting MSL boundary.")
+
+    #Create raster containing all points set as water by manning map
+    grass.mapcalc("$output=if($dem<=0.00,0,null())",
+        output="water",
+        dem="dem@PERMANENT",
+        overwrite=True,
+        quiet=True)
+    #Grow two cells to avoid unnecessary disconnects
+    grass.run_command('r.grow',
+        input="water@PERMANENT",
+        output="waterGrown1",
+        radius=2.01,
+        overwrite=True,
+        quiet=True)
+    #Create clumpmap containing unique ID values for each clump
+    grass.run_command('r.clump',
+        input="waterGrown1@PERMANENT",
+        output="clumpmap",
+        overwrite=True,
+        quiet=True)
+    #Create list of clump ID values with each associated area (#cells)
+    areas=grass.read_command('r.stats',
+        quiet=True,
+        input="clumpmap",
+        sort='desc',
+        flags='a').split()
+
+    #Make a list of all areas larger than set minimum
+    largeAreas=[]
+    minCells=20000000 #Minimum area (meters^2) needed to create clump of water
+    for clump in areas:
+        clumpID=areas.pop(0)
+        clumpArea=areas.pop(0)
+        if float(clumpArea)>=minCells and clumpID != "*":
+            largeAreas.append(clumpID)
+    #Format the large area IDs for use with r.reclass
+    reclasslist=''
+    for i in largeAreas:
+        reclasslist += ("{0} = 0\n".format(i))
+    #Reclassify all larger clumps as 0 for waterFinal raster
+    grass.write_command('r.reclass',
+        input='clumpmap',
+        output='waterReclass',
+        rules='-',
+        stdin=reclasslist,
+        overwrite=True,
+        quiet=True)
+    #Shrink water extents two cells to return to original pre-grown state
+    grass.mapcalc("$output=if(!isnull($waterReclass)&&$dem<=0,0,null())",
+        output="waterFinal",
+        waterReclass="waterReclass@PERMANENT",
+        dem="dem@PERMANENT",
+        overwrite=True,
+        quiet=True)
+    #Now calculate the unit head loss for each cell within the domain
+    grass.mapcalc("$output=if(!isnull($dem),($manning*$URConstant/$k)^2,null())",
+        output="unitHeadLoss",
+        dem="dem@PERMANENT",
+        manning="manning@PERMANENT",
+        URConstant=urconst,
+        k=1.49,
+        overwrite=True,
+        quiet=True)
+
+    grass.run_command('g.message',message="MSL set. Begin r.walk iterative process.")
+
+    #########################################################
+    #Creates cost map where ending point values in r.walk are generated from
+    #a set spacing within the given region. See other script for generation
+    #from a shapefile called uhl_points.
+
+    #Query region to find minimum and maximum region extents
+    reg_extents=grass.read_command('g.region',
+        flags="t").split("/")
+    xmin=float(reg_extents[0])
+    xmax=float(reg_extents[1])
+    ymin=float(reg_extents[2])
+    ymax=float(reg_extents[3])
+
+    grass.run_command('g.message',message="xmin = {0}".format(xmin))
+    grass.run_command('g.message',message="xmax = {0}".format(xmax))
+    grass.run_command('g.message',message="ymin = {0}".format(ymin))
+    grass.run_command('g.message',message="ymax = {0}".format(ymax))
+
+    #Set spacing (units of feet or meters, depending on region)
+    #Divide total width by (numcols-1) because column will be added to right edge
+    spacing=(xmax-xmin)/float(numcols-1) #Spacing of 50000 should be plenty
+    numrows=int((ymax-ymin)/spacing)+1 #int truncates
+
+    spacingMessage="Endpoint array for r.walk will include {0} columns and {1} rows, with a spacing of {2} units [feet or meters] between points.".format(numcols,numrows+1,spacing)
+    grass.run_command('g.message',message=spacingMessage)
+
+    xyCoords=[]
+
+    #Create a list of x,y coordinates with specified spacing
+    irow=0
+    while irow < numrows:
+        y=ymin+irow*spacing
+        icol=0
+        while icol < numcols-1:#Subtract 1 because zero indexing and leaving out last column
+            x=xmin+icol*spacing
+            xyCoords.append([x,y])
+            icol=icol+1
+        irow=irow+1
+
+    #Create row and column along edges of maximum extent
+    icol=0
+    irow=0
+    #Top row
+    while icol < numcols-1:
+        x=xmin+icol*spacing
+        xyCoords.append([x,ymax])###
+        icol=icol+1
+
+    #Right column
+    while irow < numrows:#No subtraction by 1 because final row not in line with edge of region, but final column is
+        y=ymin+irow*spacing
+        xyCoords.append([xmax,y])###
+        irow=irow+1
+
+    xyCoords.append([xmax,ymax])
+
+    totalIterations=len(xyCoords)
+    pointsMessage="Finished creating r.walk endpoints. Total r.walk iterations required: {0}.".format(totalIterations)
+    grass.run_command('g.message',message=pointsMessage)
+
+    #########################################################
+
+    #Create initial raster; this will be the value of all null cells until filled by a smaller value.
+    #This avoids having null cells set as the totalCost and allows g.rename to operate in the first iteration.
+    grass.mapcalc(
+        "totalCost=50000",
+        overwrite=True,
+        quiet=True)
+    iteration=0
+    negativesList=[]
+    for point in xyCoords:
+        xVal = point[0]
+        yVal = point[1]
+        #Set previous loop results to oldCostMap
+        grass.run_command('g.rename',
+            raster="totalCost,oldCostMap",
+            overwrite=True,
+            quiet=True)
+        #Create cost surface between water and each set of xyCoords
+        grass.run_command('r.walk',
+            overwrite=True,
+            quiet=True,
+            elevation="dem@PERMANENT",
+            friction="unitHeadLoss@PERMANENT",
+            output="walkValsFromLoop",
+            start_raster="waterFinal@PERMANENT",
+            stop_coordinates="{0},{1}".format(xVal,yVal),
+            walk_coeff="0,1,-1,-1",
+            slope_factor="-0.2125")
+        #Where r.walk values exist from the current iteration, keep each cell value which is smaller than all previous iterations.
+        grass.mapcalc(
+            "$newVal=if(!isnull($valFromLoop)&&&$valFromLoop<$oldVal,$valFromLoop,$oldVal)",
+            overwrite=True,
+            quiet=True,
+            newVal="totalCost",
+            valFromLoop="walkValsFromLoop@PERMANENT",
+            oldVal="oldCostMap@PERMANENT")
+        iteration=iteration+1
+        #Print progress update
+        iterationsMessage="Iteration {0} of {1} complete.".format(iteration,totalIterations)
+        grass.run_command('g.message',message=iterationsMessage)
+
+    #Subtract dem and remove U/R constant (squared) to produce a raster containing only L*(n*U/k)^2.
+    #L is a product of r.walk, n is from the map of Manning's coefficients, U is related to R through URConst, and k is a constant based on units (SI=1, english=1.49).
+    #Now all that is needed for a full cost surface is R, which comes from ADCIRC output
+    grass.mapcalc("$output=($totalCost-$dem)/($URConstant^2)",
+        output="rawCost",
+        totalCost="totalCost@PERMANENT",
+        dem="dem@PERMANENT",
+        URConstant=urconst,
+        overwrite=True,
+        quiet=True)
+
+    #Remove all unnecessary files
+    if landcoverraster=="NLCD2016":
+        os.system("rm -fr NLCD_2016_Land_Cover_L48_20190424.ige NLCD_2016_Land_Cover_L48_20190424.img NLCD_2016_Land_Cover_L48_20190424.rde NLCD_2016_Land_Cover_L48_20190424.rrd NLCD_2016_Land_Cover_L48.xml NLCD2016_spatial_metadata,NLCD_2016_Land_Cover_L48_20190424.zip")
+
+    #Remove all unnecessary rasters
+    grass.run_command("g.remove",
+        quiet=True,
+        flags="f",
+        type="all",
+        name="waterFinal@PERMANENT,manning@PERMANENT,manningInteger@PERMANENT,oldCostMap@PERMANENT,totalCost@PERMANENT,unitHeadLoss@PERMANENT,walkValsFromLoop@PERMANENT,water@PERMANENT,waterGrown1@PERMANENT,waterReclass@PERMANENT,MASK@PERMANENT")
+    #Reclassified rasters must be removed before their corresponding basemaps. Basemaps are included in this step, while reclassified were removed previously.
+    grass.run_command("g.remove",
+        quiet=True,
+        flags="f",
+        type="all",
+        name="clumpmap@PERMANENT,demWithNeg@PERMANENT,landCoverClass@PERMANENT")
+    #Add mask once again; mask had to be removed to delete demWithNeg
+    grass.run_command("r.mask",
+        raster="dem@PERMANENT",
+        overwrite=True,
+        quiet=True)
+
+    os.system("mv GRASS_LOCATION HEADLOSS_LOCATION")
+    os.system("zip -rq HEADLOSS_LOCATION.zip HEADLOSS_LOCATION")
+    os.system("rm -fr HEADLOSS_LOCATION")
+
+    sys.exit(0)
+
 
 # jgf: If there are no command line arguments, trigger the menu to 
 # collect input parameters interactively. Otherwise, use the command 
@@ -330,7 +635,7 @@ else:
     flooddepth=options.flooddepth
     grownfiletype=options.grownfiletype
 
-if grow == "yes":
+if grow != "no":
     polytype = "polygon"
     viztype = "shapefile"
     outputfile = "kalpana_out"
@@ -1030,8 +1335,8 @@ if viztype ==  'shapefile':
 else:
     print 'Finished generating KML file after %d seconds'% (time.time()-time0)
 
-## R.GROW OPTION ##
-if grow == 'yes':
+### STATIC DOWNSCALING METHOD ###
+if grow == 'static' or grow == 'yes':
     os.system("unzip -q GRASS_LOCATION.zip")
     os.system("unzip -q GRASS_LOCATION_wgs84.zip")
 
@@ -1190,18 +1495,18 @@ if grow == 'yes':
 	grass.mapcalc(
 	    "$output = if(!isnull($input),$old,if($dist < $radius && $base < $new,$new,null()))",
 	    output=output, input=input, radius=radius, base=base,
-	    old=old, new=new, dist=temp_dist)
+	    old=old, new=new, dist=temp_dist, quiet=True)
     else:
 	# shrink
 	try:
 	    grass.run_command('r.grow.distance', input=input, metric=metric,
-			      distance=temp_dist, value=temp_val, flags='n')
+			      distance=temp_dist, value=temp_val, flags='n', quiet=True)
 	except CalledModuleError:
 	    grass.fatal(_("Shrinking failed. Removing temporary maps."))
 
 	grass.mapcalc(
 	    "$output = if($dist < $radius,null(),$old)",
-	    output=output, radius=radius, old=old, dist=temp_dist)
+	    output=output, radius=radius, old=old, dist=temp_dist, quiet=True)
 
     # grass.run_command('r.colors', map=output, raster=input)
 
@@ -1276,7 +1581,7 @@ if grow == 'yes':
     # Passes back grown ADCIRC cells if they coincide with the assigned value (-1).
     grass.mapcalc("$output = if($A == -1,$B,null())",
 
-		  output='storm_final',
+		  output='storm_final_binned',
 		  A='tempmap',
 		  B='WaterLevels_final_binned',
 		  quiet=True,
@@ -1292,17 +1597,9 @@ if grow == 'yes':
 		      quiet=True,
 		      overwrite=True)
 	grass.run_command('g.rename',
-		      raster=('storm_final_less_errors','storm_final'),
+		      raster=('storm_final_less_errors','storm_final_binned'),
 		      overwrite=True,
 		      quiet=True)
-
-    if flooddepth != "yes":
-        # Rounds each new ADCIRC cell value to the nearest 0.5
-        grass.mapcalc("$output = if($adcirc - int($adcirc) > 0.5,int($adcirc) + 1.0,int($adcirc) + 0.5)",
-	    	      output='storm_final_binned',
-		      adcirc='storm_final',
-		      quiet=True,
-		      overwrite=True)
 
     print 'Finished executing r.grow after {0:.2f} minutes'.format((time.time()-time0)/60)
 
@@ -1342,8 +1639,247 @@ if grow == 'yes':
 
         print 'Finished creating {0} after {1:.2f} minutes'.format(grownoutput,float((time.time()-time0)/60))
 ###	#Zip output and remove extranous folders ###Pay attention to output type; it's possible not all grownfiletypes can be zipped.
-    os.system("zip -r {0}.zip {0}".format(grownoutput))
+    os.system("zip -rq {0}.zip {0}".format(grownoutput))
     os.system("rm -fr GRASS_LOCATION_wgs84 GRASS_LOCATION kalpana_out {0}".format(grownoutput))
     if grownfiletype != 'ESRI_Shapefile':
 	print 'USER WARNING: User may be required to specify file extension for {0}'.format(grownoutput)
+
+### HEAD LOSS METHOD ###
+if grow=="headloss":
+    os.system("unzip -q HEADLOSS_LOCATION.zip")
+    os.system("unzip -q GRASS_LOCATION_wgs84.zip")
+    #CALL INSTANCE OF GRASS, indent everything below this line.
+    #Working with GRASS without starting it explicitly; using existing location.
+    #This works assuming a linux operating system. If using a different operating system, see the website below.
+    #More information: https://grasswiki.osgeo.org/wiki/Working_with_GRASS_without_starting_it_explicitly
+    grass7bin = 'grass72'
+    gisdb = os.path.expanduser("./")
+    startcmd = [grass7bin, '--config', 'path']
+    p = subprocess.Popen(startcmd, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = p.communicate()
+    if p.returncode !=0:
+        print >>sys.stderr, 'ERROR: Cannot find GRASS GIS 7 start script (%s)' % startcmd
+        sys.exit(-1)
+    gisbase = out.strip('\n\r')
+    os.environ['GISBASE'] = gisbase
+    os.environ['PATH'] += os.pathsep + os.path.join(gisbase, 'extrabin')
+    home = os.path.expanduser('./')
+    os.environ['PATH'] += os.pathsep + os.path.join(home, '.grass7', 'addons', 'scripts')
+    gpydir = os.path.join(gisbase, "etc", "python")
+    sys.path.append(gpydir)
+    os.environ['GISDBASE'] = gisdb
+
+    #GRASS is now ready to be imported
+
+    import grass.script as grass
+    import grass.script.setup as gsetup
+    from grass.exceptions import CalledModuleError
+
+    #Set input variables
+    exagVal=float(options.fricexagval)
+
+    ### IMPORT ADCIRC SHAPEFILE ###
+
+    location = 'GRASS_LOCATION_wgs84'
+    mapset = 'PERMANENT'
+    gsetup.init(gisbase, gisdb, location, mapset)#Setting the GRASS working environment to GRASS_LOCATION_wgs84 (WGS84;lat/long)
+
+    grass.run_command('g.message',message="GRASS initialized. Begin downscaling.")
+    print "GRASS initialized after {0:.2f} seconds.".format(time.time()-time0)
+
+    #Importing the shapefile generated by Kalpana
+    grass.run_command('v.in.ogr',
+        input='./kalpana_out/kalpana_out.shp',
+        min_area=10,
+        snap=0.000001,
+        overwrite=True,
+        quiet=True)
+
+    ### FORECAST USING HEAD LOSS METHOD ###
+
+    location = "HEADLOSS_LOCATION"
+    mapset="PERMANENT"
+    gsetup.init(gisbase, gisdb, location, mapset)
+
+    ### RCEforecast.py ###
+
+    #Setting computational region based on DEM.
+    grass.run_command('g.region',
+        raster='dem@PERMANENT',
+        overwrite=True,
+        quiet=True)
+    #Creates mask based on extents of DEM raster to limit area of raster operation.
+    grass.run_command('r.mask',
+        raster='dem@PERMANENT',
+        quiet=True,
+        overwrite=True)
+    #Takes shapefile from WGS84 location and projects it into GRASS_LOCATION.
+    grass.run_command('v.proj',
+        location='GRASS_LOCATION_wgs84',
+        mapset='PERMANENT',
+        input='kalpana_out@PERMANENT',
+        output='water_level_vproj',
+        overwrite=True,
+        quiet=True)
+    #Converts shapefile to raster using eleavg (average elevation per Kalpana bin).
+    #Other options include elemax and elemin.
+    grass.run_command('v.to.rast',
+        input='water_level_vproj',
+        type='area',
+        output='ADCIRC_WL',
+        use='attr',
+        attribute_column='eleavg',
+        overwrite=True,
+        quiet=True)
+
+    #Extrapolate ADCIRC maxele output
+    grass.run_command("r.grow.distance",
+        overwrite=True,
+        quiet=True,
+        input="ADCIRC_WL@PERMANENT",
+        value="ADCIRC_WLVal")
+    #Creates raster containing the cumulative raw costs within the extents of ADCIRC results
+    grass.mapcalc("$output=if(!isnull($ADCIRC_WL),$rawCost,null())",
+        overwrite=True,
+        quiet=True,
+        output="rawCostADCIRC",
+        ADCIRC_WL="ADCIRC_WL@PERMANENT",
+        rawCost="rawCost@PERMANENT")
+    #Extrapolate cumulative raw cost values at edge of ADCIRC extent
+    grass.run_command("r.grow.distance",
+        overwrite=True,
+        quiet=True,
+        input="rawCostADCIRC@PERMANENT",
+        value="rawCostADCIRCVal")
+    if flooddepth != "yes":
+        #If ADCIRC water levels are above the dem, calculate the cost of reaching each cell based on the difference
+        #between current window and ADCIRC raw costs using the average hydraulic radius.
+        grass.mapcalc("$output=if($ADCIRC_WLVal>$dem&&$ADCIRC_WLVal>($dem+$exag*($rawCost-$rawCostADCIRCVal)*(1/($ADCIRC_WLVal-0.5*$dem)^(2/3))^2),$ADCIRC_WLVal,null())",
+            overwrite=True,
+            quiet=True,
+            output="forecastWLnotClumped",
+            ADCIRC_WLVal="ADCIRC_WLVal@PERMANENT",
+            dem="dem@PERMANENT",
+            exag=exagVal,
+            rawCost="rawCost@PERMANENT",
+            rawCostADCIRCVal="rawCostADCIRCVal@PERMANENT")
+    else:
+        #Set the water levels to the difference between extrapolated ADCIRC values and cost values
+        grass.mapcalc("$output=if($ADCIRC_WLVal>$dem&&$dem>0&&$ADCIRC_WLVal>($dem+$exag*($rawCost-$rawCostADCIRCVal)*(1/($ADCIRC_WLVal-0.5*$dem)^(2/3))^2),$ADCIRC_WLVal-($dem+$exag*($rawCost-$rawCostADCIRCVal)*(1/($ADCIRC_WLVal-0.5*$dem)^(2/3))^2),null())",
+            output="forecastWLnotClumped_temp",
+            ADCIRC_WLVal="ADCIRC_WLVal@PERMANENT",
+            dem="dem@PERMANENT",
+            exag=exagVal,
+            rawCost="rawCost@PERMANENT",
+            rawCostADCIRCVal="rawCostADCIRCVal@PERMANENT",
+            quiet=True,
+            overwrite=True)
+        #Temporary fix for depths where rawCost < rawCostADCIRCVal
+        grass.mapcalc("$output=if(!isnull($forecastWLnotClumped_temp)&&$rawCostADCIRCVal>$rawCost,$ADCIRC_WLVal-$dem,$forecastWLnotClumped_temp)",
+            output="forecastWLnotClumped",
+            forecastWLnotClumped_temp="forecastWLnotClumped_temp@PERMANENT",
+            rawCostADCIRCVal="rawCostADCIRCVal@PERMANENT",
+            rawCost="rawCost@PERMANENT",
+            ADCIRC_WLVal="ADCIRC_WLVal@PERMANENT",
+            dem="dem@PERMANENT",
+            #quiet=True,
+            overwrite=True)
+
+    #Limit extents of calculation to areas where water levels exist.
+    grass.run_command("r.mask",
+        raster="forecastWLnotClumped@PERMANENT",
+        overwrite=True,
+        quiet=True)
+
+    grass.run_command('g.message',message="Downscaling complete. Begin hydraulic connectivity cleanup.")
+    print "Downscaling finished after {0:.2f} minutes.".format((time.time()-time0)/60.0)
+
+    #CLUMPING
+
+    #Set output to constant value; clumps only group cells with same value
+    grass.mapcalc("$output=if(!isnull($forecastWLnotClumped),-1,null())",
+        overwrite=True,
+        quiet=True,
+        output="tempmap",
+        forecastWLnotClumped="forecastWLnotClumped@PERMANENT")
+    #Create unique value for each clump
+    grass.run_command("r.clump",
+        input="tempmap@PERMANENT",
+        output="clumpmap",
+        overwrite=True,
+        quiet=True)
+    #Generate separated list containing areas (m^2) of each clump
+    areas=grass.read_command("r.stats",
+        quiet=True,
+        input="clumpmap",
+        sort="desc",
+        flags="cna").split()
+    #Create a list of only the IDs of clumps with areas above a threshold value "minCells"
+    largeAreas=[]
+    minCells=1000000 #1000000 m^2 = 1 km^2
+    for clump in areas:
+        clumpID=areas.pop(0)
+        clumpArea=areas.pop(0)
+        cellCount=areas.pop(0)
+        if float(clumpArea)>=minCells:
+            largeAreas.append(clumpID)
+    #Convert list to format accepted by r.reclass
+    reclasslist=""
+    for i in largeAreas:
+        reclasslist += ("{0} = 0\n".format(i))
+    #Reclassify clumpmap to remove small clumps
+    grass.write_command("r.reclass",
+        input="clumpmap@PERMANENT",
+        output="forecastWLReclass",
+        rules="-",
+        stdin=reclasslist,
+        quiet=True,
+        overwrite=True)
+    #Replace with actual water level values
+    grass.mapcalc("$output=if(!isnull($forecastWLReclass),$forecastWLnotClumped,null())",
+        output="forecastWL",
+        forecastWLReclass="forecastWLReclass@PERMANENT",
+        forecastWLnotClumped="forecastWLnotClumped@PERMANENT",
+        overwrite=True,
+        quiet=True)
+
+    grass.run_command('g.message',message="Hydraulic connectivity cleanup complete. Begin generating output format.")
+    print "Hydraulic connectivity cleanup finished after {0:.2f} minutes.".format((time.time()-time0)/60.0)
+
+    #Output the flood depths in raster format
+    if flooddepth == "yes":
+        grass.run_command('r.out.gdal',
+            input='forecastWL',
+            flags='m',
+            format='GTiff',
+            nodata=-9999,
+            output=grownoutput+'.tif',
+            quiet=True,
+            overwrite=True)
+
+    else:
+        #Converts binned raster to polygons
+        grass.run_command('r.to.vect',
+                          input='forecastWL',
+                          output=grownoutput,
+                          type='area',
+                          flags='s',
+                          quiet=True,
+                          overwrite=True)
+
+        #Export to a useful format specified in grownfiletype; defaul is ESRI shapefile
+        grass.run_command('v.out.ogr',
+                          input=grownoutput,
+                          output=grownoutput,
+                          type='area',
+                          format=grownfiletype,
+                          flags='se',
+                          quiet=True,
+                          overwrite=True)
+
+    print "Downscaling using the head loss method complete. Time required: {0:.2f} minutes.".format((time.time()-time0)/60.0)
+
+    #Remove unnecessary folders
+    os.system("zip -rq {0}.zip {0}".format(grownoutput))
+    os.system("rm -fr HEADLOSS_LOCATION GRASS_LOCATION_wgs84 kalpana_out {0}".format(grownoutput))
 
