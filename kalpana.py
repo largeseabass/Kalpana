@@ -82,7 +82,7 @@ parser.add_option("--resolution", dest="resolution", default=50, help="specify r
 parser.add_option("--epsg", dest="myepsg", default="null", help="enter the desired state plane EPSG code for your location. EPSG codes can be found using the following link: http://spatialreference.org/ref/?page=7&search=")
 parser.add_option("--grownoutput", dest="grownoutput", default="WaterLevels_grown", help="enter a name for the final grown shapefile output")
 parser.add_option("--createmethod", dest="createmethod", default="null", help="enter 'existing' if the GRASS location should be created using the DEM's existing datum")
-parser.add_option("--growradius", dest="growradius", default=30.01, help="enter the maximum number of cells for r.grow extrapolation")
+parser.add_option("--growradius", dest="growradius", default=30.01, help="enter the maximum number of cells for r.grow extrapolation or enter [none] if no maximum grow distance is desired")
 parser.add_option("--flooddepth", dest="flooddepth", default="no", help="display flood depth output (yes or no)")
 parser.add_option("--grownfiletype", dest="grownfiletype", default="ESRI_Shapefile", help="filetype for grow and/or flooddepth output. Select from available OGR formats with GRASS GIS.")
 parser.add_option("--vunitconv", dest="vunitconv", default="no", help="convert vertical units? (no or m2ft or ft2m)")
@@ -1445,8 +1445,12 @@ if grow == 'static' or grow == 'yes':
     input = 'kalpana_rast@PERMANENT'
     output = 'WaterLevels_final_binned'
     base = 'dem@PERMANENT'
-    radius = float(options.growradius)
-    metric = 'euclidean'
+    radius = options.growradius
+    if radius != "none":
+        radius = float(radius)
+        metric = 'euclidean'
+    else:
+        metric="none"
     old = ''
     new = ''
     mapunits = ''
@@ -1456,9 +1460,10 @@ if grow == 'static' or grow == 'yes':
     temp_dist = "r.grow.tmp.%s.dist" % tmp
 
     shrink = False
-    if radius < 0.0:
+    if radius < 0.0 and radius != "none":
 	shrink = True
-    radius = -radius
+    if radius != "none":
+        radius = -radius
 
     if new == '' and shrink == False:
 	temp_val = "r.grow.tmp.%s.val" % tmp
@@ -1469,7 +1474,7 @@ if grow == 'static' or grow == 'yes':
     if old == '':
 	old = input
 
-    if not mapunits:
+    if not mapunits and radius != "none":
 	kv = grass.region()
 	scale = math.sqrt(float(kv['nsres']) * float(kv['ewres']))
 	radius *= scale
@@ -1485,17 +1490,24 @@ if grow == 'static' or grow == 'yes':
     if not grass.find_file(base)['file']:
 	grass.fatal(_("Basemap <%s> not found") % base)
 
-    if shrink == False:
+    if shrink == False and radius != "none":
 	try:
 	    grass.run_command('r.grow.distance', input=input, metric=metric,
 			      distance=temp_dist, value=temp_val)
 	except CalledModuleError:
 	    grass.fatal(_("Growing failed. Removing temporary maps."))
-
 	grass.mapcalc(
 	    "$output = if(!isnull($input),$old,if($dist < $radius && $base < $new,$new,null()))",
 	    output=output, input=input, radius=radius, base=base,
 	    old=old, new=new, dist=temp_dist, quiet=True)
+    elif shrink == False and radius == "none":
+        try:
+            grass.run_command('r.grow.distance', input=input, value=temp_val)
+        except CalledModuleError:
+            grass.fatal(_("Growing failed. Removing temporary maps."))
+        grass.mapcalc(
+            "$output = if(!isnull($input),$old,if($base < $new,$new,null()))",
+            output=output, input=input, old=old, base=base, new=new, quiet=True)
     else:
 	# shrink
 	try:
@@ -1581,7 +1593,7 @@ if grow == 'static' or grow == 'yes':
     # Passes back grown ADCIRC cells if they coincide with the assigned value (-1).
     grass.mapcalc("$output = if($A == -1,$B,null())",
 
-		  output='storm_final_binned',
+		  output='storm_final',
 		  A='tempmap',
 		  B='WaterLevels_final_binned',
 		  quiet=True,
@@ -1620,7 +1632,7 @@ if grow == 'static' or grow == 'yes':
     else:
         #Converts binned raster to polygons
         grass.run_command('r.to.vect',
-	  	          input='storm_final_binned',
+	  	          input='storm_final',
 		          output=grownoutput,
 		          type='area',
 		          flags='s',
