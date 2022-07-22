@@ -85,8 +85,12 @@ def dzDatum(vdatum_directory, x, y, pathout, vdatumIn='tss',
     '''
     ## load area where the epsg 7912 is needed
     aux0 = __file__
-    aux1 = aux0.split('\\')
-    aux2 = '\\'.join(aux1[:-2])
+    if sys.platform == 'win32':
+        aux1 = aux0.split('\\')
+        aux2 = '\\'.join(aux1[:-2])
+    else:
+        aux1 = aux0.split('/')
+        aux2 = '/'.join(aux1[:-2])
     areaFile = os.path.join(aux2, 'inputFiles', 'chesapeake_delaware_bay_area', areaFile)
     
     pol = gpd.read_file(areaFile)
