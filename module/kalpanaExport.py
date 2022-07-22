@@ -61,7 +61,7 @@ def gdfChangeVerUnit(gdf, ini, out):
 
 def dzDatum(vdatum_directory, x, y, pathout, vdatumIn='tss', 
             vdatumOut='navd88', epsg1=6319, epsg2=7912,
-            areaFile="xGeoid20B.gpkg"):
+            areaFile="xGeoid20B_R1.gpkg"):
     ''' Get the vertical difference of two datums on a group of locations
         Parameters
             vdatum_directory: string
@@ -103,8 +103,8 @@ def dzDatum(vdatum_directory, x, y, pathout, vdatumIn='tss',
     ## get the difference between vertical datums on the requested points
     vp1.transform_points((epsg2, vdatumIn), (epsg1, vdatumOut), x[aux], y[aux], z = zcero[aux])   
     ## define dataframe
-    df0 = pd.DataFrame({'x': x[~aux], 'y': y[~aux], 'z': z[~aux], 'dz': vp0.z, 'area': 0})
-    df1 = pd.DataFrame({'x': x[aux], 'y': y[aux], 'z': z[aux], 'dz': vp1.z, 'area': 1})
+    df0 = pd.DataFrame({'x': x[~aux], 'y': y[~aux], 'dz': vp0.z, 'area': 0})
+    df1 = pd.DataFrame({'x': x[aux], 'y': y[aux], 'dz': vp1.z, 'area': 1})
     df = pd.concat([df0, df1], axis = 0)
     df = df.dropna()
     df.index = range(len(df))
