@@ -519,11 +519,12 @@ def runStatic(ncFile, levels, epsgOut, pathOut,  grassVer, pathRasFiles, rasterF
         ***************************************** REQUIRED inputs of static method *****************************************
         ********************************************************************************************************************
             grassVer: float
-                Version of the grass software (The code was writen for v8.0).
+                Version of the grass software (The code was writen for v8.0 but tested for 8.2 and 8.3 versions).
             pathRasters: str
                 path of the raster files
             rasterFiles: list or str
-                name(s) of the raster file(s).
+                name(s) of the raster file(s). If equals to 'all', all dems inside the 'pathRasters' will be used.
+                In case 'all' is used, the pathRasters folder must has only DEM files.
         ********************************************************************************************************************
         ***************************************** OPTIONAL inputs of nc2shp function ***************************************
         ********************************************************************************************************************
@@ -627,6 +628,8 @@ def runStatic(ncFile, levels, epsgOut, pathOut,  grassVer, pathRasFiles, rasterF
     print(f'    Start Setup grass environment')
     t11 = time.time()
     
+    if rasterFiles == 'all':
+        rasterFiles = os.listdir(pathRasFiles)
     ## setup grass env
     setGrassEnv(grassVer, pathGrassLocation, createGrassLocation, gs, gsetup,
                 pathRasFiles, rasterFiles, createLocMethod, epsgOut)
