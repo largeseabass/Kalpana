@@ -404,7 +404,7 @@ def clumping(rasterGrown, rasterOrg, rasterNew, clumpSizeThreshold, pkg):
     
     ## get clump ID of the ones with more cells than thres
     clumpsID = [x for x, y in zip(areas[::2], areas[1::2]) if int(y) >=  clumpThres]
-    reclassList = ''.join([f"{i} = -1\n" for i in areas[::2]])
+    reclassList = ''.join([f"{i} = -1\n" for i in clumpsID])
     
     pkg.write_command('r.reclass', input = 'temp2', output = 'temp3', rules = '-', 
                 stdin = reclassList, quiet = True, overwrite = True)
@@ -435,7 +435,7 @@ def postProcessStatic(compAdcirc2dem, floodDepth, kalpanaShp, clumpThreshold, pk
     # elevation will be removed
     if compAdcirc2dem == True:
         ta = time.time()
-        pkg.mapcalc("$output = if(!isnull($dem), if($dem > $adcirc, null(), $adcirc), $adcirc)",
+        pkg.mapcalc("$output = if(isnull($dem), $adcirc, if($dem > $adcirc, null(), $adcirc))",
                     output = 'grownKalpanaRast1', adcirc = 'grownKalpanaRast0', 
                     dem = 'dem', quiet = True, overwrite = True)
         print(f'        Delete ground level: {(time.time() - ta)/60:0.3f}')
