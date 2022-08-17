@@ -618,7 +618,6 @@ def runStatic(ncFile, levels, epsgOut, pathOut,  grassVer, pathRasFiles, rasterF
     else:
         pathGrassLocation = os.path.join(pathaux, nameGrassLocation)
     
-    print(pathGrassLocation)
     print(f'    Start Setup grass environment')
     t11 = time.time()
     
