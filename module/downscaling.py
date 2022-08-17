@@ -6,7 +6,7 @@ import time
 import geopandas as gpd
 import rioxarray as rxr
 from rasterio.crs import CRS
-from kalpanaExport import nc2shp, mesh2gdf, fort14togdf
+from export import nc2shp, mesh2gdf, fort14togdf
 
 '''
     All functions using GRASS GRIS has an argument 'pkg' which is the grass package.
