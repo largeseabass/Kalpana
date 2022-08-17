@@ -17,10 +17,9 @@ import warnings
 warnings.filterwarnings("ignore")
 import time
 import dask
-import dask.array as da
-import dask_ml.cluster
+#import dask.array as da
 from tqdm.dask import TqdmCallback
-from vyperdatum.points import VyperPoints
+#from vyperdatum.points import VyperPoints
 from scipy.spatial import KDTree
 from itertools import islice
 
@@ -510,53 +509,7 @@ def runExtractContours(ncObj, var, levels, conType, epsg, dzFile=None, zeroDif=-
         
     return gdf
 
-def clusteringMeshElem(x, y, n, rs=42):
-    ''' Compute clusters of the mesh element centroids using KMeans
-        Parameters
-            x, y: np.array
-                x, y coordinate of the mesh element centroids
-            n: int
-                factor used to compute the number of clusters. n_clusters = n_elements / n
-            rs: int. Default 42
-                Random state
-        Returns
-            pred: np.array
-                predicted cluster for each triangle
-            cents: np.array
-                coordinate of the centroid's center
-    '''
-    ## x and y 1D arrays to one 2D array
-    z = np.array((x, y)).T
-    ## necceary for using dask clustering
-    z = z.copy(order = 'C')
-    ## kmeans using dask
-    clus = dask_ml.cluster.KMeans(n_clusters = int(len(x)/n), random_state = rs).fit(z)
-    ## get predicted cluster ID for each mesh element
-    pred = clus.predict(z)
-    ## coordinate of the clusters centroid
-    cents = clus.cluster_centers_
-    return pred, cents
-    
-def dissElem(gdf, aggfunc='mean'):
-    ''' Dissolve mesh elements based on the cluster ID
-        Parameters:
-            gdf: GeoDataFrame
-                mesh
-            aggfunc: str. Default mean
-                how to aggregate quantitative values. More options on
-                https://geopandas.org/en/stable/docs/user_guide/aggregation_with_dissolve.html
-        Returns
-            simpGdf: GeoDataFrame
-                Dissolved geometries
-    '''
-    ## dissolve mesh elements using the cluster ID, --> merge all polygons with same cluster ID and
-    ## average all other parameters
-    simpGdf = gdf.dissolve(by = 'clusID', aggfunc = 'mean')
-    ## compute standard deviation of the representative length of all triangles with same cluster ID
-    simpGdf['repLen_std'] = gdf.groupby('clusID')['repLen'].std().values
-    return simpGdf
-
-def mesh2gdf(ncObj, epsgIn, epsgOut, n=-1,rs=42,aggfunc='mean'):
+def mesh2gdf(ncObj, epsgIn, epsgOut):
     ''' Write adcirc mesh from netcdf as GeoDataFrame and extract centroid of each element. Used to create submesh
         and for the downscaling process
         Parameters:
@@ -566,12 +519,6 @@ def mesh2gdf(ncObj, epsgIn, epsgOut, n=-1,rs=42,aggfunc='mean'):
                 coordinate system of the adcirc input
             epsgOut: int
                 coordinate system of the output shapefile
-            n: int
-                factor used to compute the number of clusters. n_clusters = n_elements / n
-            rs: int. Default 42
-                Random state
-            aggfunc: str. Default mean
-                how to aggregate quantitative values
         Returns
             gdf: GeoDataFrame
                 GeoDataFrame with polygons as geometry and centroid coordinates in columns
@@ -612,14 +559,7 @@ def mesh2gdf(ncObj, epsgIn, epsgOut, n=-1,rs=42,aggfunc='mean'):
         gdf['repLen'] = [np.round(geom.length/3, 3) for geom in gdf.geometry]
         gdf['elemArea'] = [np.round(geom.area, 3) for geom in gdf.geometry]
     
-    if n != -1:
-        ## clustering the mesh if requested
-        pred, centr = clusteringCentroids(gdf.centX, gdf.centY, n, rs)
-        gdf['clusID'] = pred
-        simpGdf = dissElem(gdf, aggfunc)
-        return simpGdf
-    else:
-        return gdf
+    return gdf
     
 def readSubDomain(subDomain, epsg):
     ''' Read a user specified subdomain and transform it to GeoDataFrame
@@ -780,7 +720,7 @@ def nc2xr(ncFile, var):
     return ds
     
 def nc2shp(ncFile, var, levels, conType, pathOut, epsgOut, vUnitOut='ft', vUnitIn='m', epsgIn=4326,
-           subDomain=None, exportMesh=False, n=-1, rs=42, aggfunc='mean', meshName=None, dzFile=None, zeroDif=-20):
+           subDomain=None, exportMesh=False, meshName=None, dzFile=None, zeroDif=-20):
     ''' Run all necesary functions to export adcirc outputs as shapefiles.
         Parameters
             ncFile: string
@@ -806,12 +746,6 @@ def nc2shp(ncFile, var, levels, conType, pathOut, epsgOut, vUnitOut='ft', vUnitI
                 adcirc input file.
             exportMesh: boolean. Default False
                 True for export the mesh geodataframe and also save it as a shapefile
-            n: int
-                factor used to compute the number of clusters. n_clusters = n_elements / n
-            rs: int. Default 42
-                Random state
-            aggfunc: str. Default mean
-                how to aggregate quantitative values
             meshName: str
                 file name of the output mesh shapefile
             dzFile: str
@@ -878,7 +812,7 @@ def nc2shp(ncFile, var, levels, conType, pathOut, epsgOut, vUnitOut='ft', vUnitI
     if exportMesh == True:
         print('    Exporting mesh')
         t0 = time.time()
-        mesh = mesh2gdf(nc, epsgIn, epsgOut, n,rs,aggfunc)
+        mesh = mesh2gdf(nc, epsgIn, epsgOut)
         mesh.to_file(os.path.join(os.path.dirname(pathOut), f'{meshName}.shp'))
         print(f'    Mesh exported: {(time.time() - t0)/60:0.3f} min')
         print(f'Ready with exporting code after: {(time.time() - t00)/60:0.3f} min')

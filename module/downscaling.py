@@ -404,7 +404,7 @@ def clumping(rasterGrown, rasterOrg, rasterNew, clumpSizeThreshold, pkg):
     
     ## get clump ID of the ones with more cells than thres
     clumpsID = [x for x, y in zip(areas[::2], areas[1::2]) if int(y) >=  clumpThres]
-    reclassList = ''.join([f"{i} = -1\n" for i in clumpsID])
+    reclassList = ''.join([f"{i} = -1\n" for i in areas[::2]])
     
     pkg.write_command('r.reclass', input = 'temp2', output = 'temp3', rules = '-', 
                 stdin = reclassList, quiet = True, overwrite = True)
@@ -435,7 +435,7 @@ def postProcessStatic(compAdcirc2dem, floodDepth, kalpanaShp, clumpThreshold, pk
     # elevation will be removed
     if compAdcirc2dem == True:
         ta = time.time()
-        pkg.mapcalc("$output = if(isnull($dem), $adcirc, if($dem > $adcirc, null(), $adcirc))",
+        pkg.mapcalc("$output = if(!isnull($dem), if($dem > $adcirc, null(), $adcirc), $adcirc)",
                     output = 'grownKalpanaRast1', adcirc = 'grownKalpanaRast0', 
                     dem = 'dem', quiet = True, overwrite = True)
         print(f'        Delete ground level: {(time.time() - ta)/60:0.3f}')
@@ -499,7 +499,7 @@ def postProcessStatic(compAdcirc2dem, floodDepth, kalpanaShp, clumpThreshold, pk
         
 def runStatic(ncFile, levels, epsgOut, pathOut,  grassVer, pathRasFiles, rasterFiles,
               epsgIn=4326, vUnitIn='m', vUnitOut='ft', var='zeta_max', conType ='polygon', 
-              subDomain=None, exportMesh=False, n=-1, rs=42, aggfunc='mean', dzFile=None, zeroDif=-20, 
+              subDomain=None, exportMesh=False, dzFile=None, zeroDif=-20, 
               nameGrassLocation=None, createGrassLocation=True, createLocMethod='from_raster', attrCol='zMean', repLenGrowing=1.0, 
               meshFile=None, compAdcirc2dem=True, floodDepth=False, clumpThreshold='from_mesh', perMinElemArea=1, ras2vec=False):
     ''' Run static downscaling method and the nc2shp function of the kalpanaExport module.
@@ -542,12 +542,6 @@ def runStatic(ncFile, levels, epsgOut, pathOut,  grassVer, pathRasFiles, rasterF
                 adcirc input file.
             exportMesh: boolean. Default False
                 True for export the mesh geodataframe and also save it as a shapefile
-            n: int
-                factor used to compute the number of clusters. n_clusters = n_elements / n
-            rs: int. Default 42
-                Random state
-            aggfunc: str. Default mean
-                how to aggregate quantitative values
             dzFile: str
                 full path of the pickle file with the vertical difference between datums
                 for each mesh node
@@ -594,8 +588,8 @@ def runStatic(ncFile, levels, epsgOut, pathOut,  grassVer, pathRasFiles, rasterF
         os.mkdir(pathaux)
     
     if exportMesh == True:
-        gdf, mesh = nc2shp(ncFile, var, levels, conType, pathOut, epsgOut, vUnitOut, 
-                           vUnitIn, epsgIn, subDomain, exportMesh, n, rs, aggfunc,
+        gdf, mesh = nc2shp(ncFile, var, levels, conType, pathOut, epsgOut, 
+                           vUnitOut, vUnitIn, epsgIn, subDomain, exportMesh,
                            os.path.splitext(os.path.basename(meshFile))[0], dzFile, zeroDif)
         meshFile = os.path.join(pathaux, os.path.splitext(os.path.basename(meshFile))[0] + '.shp')
     else:
