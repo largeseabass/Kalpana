@@ -6,6 +6,7 @@ import time
 import geopandas as gpd
 import rioxarray as rxr
 from rasterio.crs import CRS
+from rasterio.enums import Resampling
 from export import nc2shp, mesh2gdf, fort14togdf
 
 '''
@@ -738,19 +739,53 @@ def meshRepLen2raster(fort14, epsgIn, epsgOut, pathOut, grassVer, pathRasFiles, 
                     output = os.path.splitext(pathOut)[0] + '.tif')
     print(f'        Mesh exported as raster: {(time.time() - t0)/60:0.2f} min')
     
-def reprojectRas(filein, epsgOut):
-    ''' Reproject rasters in WGS84
+def reprojectRas(filein, pathout, epsgOut=None, res='same'):
+    ''' Reproject and change resolution of rasters
         Parameters
             filein: str
                 full path of the input raster
-            epsgOut: int
+            pathout: str
+                path where the new file will be stored, same filename
+                will be used with new epsg or resolution if changed
+            epsgOut: int. Default None
                 coordinate system of the output raster
+            res: int or float. Default None
+                desired resolution
         Returns
             aux: int
                 1 if the raster file was reproject, 0 otherwise
     '''
     ## open raster
     rasIn = rxr.open_rasterio(filein)
+    bname = os.path.splitext(os.path.basename(filein))[0]
     ## reproject if raster is in wgs84 (lat/lon)
-    rasOut = rasIn.rio.reproject(epsgOut)
-    rasOut.rio.to_raster(os.path.splitext(filein)[0] + f'_epsg{epsgOut}.tif')
+    if res == 'same':
+        rasOut = rasIn.rio.reproject(epsgOut)
+        rasOut.rio.to_raster(os.path.join(pathout, bname + f'_epsg{epsgOut}.tif'))
+    ## change resolution
+    else:
+        scaleFactor = rasIn.rio.resolution()[0] / res
+        newWidth = int(rasIn.rio.width * scaleFactor)
+        newHeight = int(rasIn.rio.height * scaleFactor)
+        
+        ## same crs
+        if epsgOut == None:
+            rasOut = rasIn.rio.reproject(rasIn.rio.crs, shape = (newHeight, newWidth),
+                                        resampling = Resampling.bilinear)
+            rasOut.rio.to_raster(os.path.join(pathout, bname + f'_res{res}.tif'))
+        
+        ## change crs
+        else:
+            ## if raster in epsg 4326 reprojection and change of res
+            ## doesn't work. First reprojection and then change of res
+            if rasIn.rio.crs.to_string() == 'EPSG:4326':
+                rasOut = rasIn.rio.reproject(epsgOut)
+                scaleFactor = rasOut.rio.resolution()[0] / res
+                newWidth = int(rasOut.rio.width * scaleFactor)
+                newHeight = int(rasOut.rio.height * scaleFactor)
+                rasOut = rasIn.rio.reproject(rasOut.rio.crs, shape = (newHeight, newWidth),
+                                            resampling = Resampling.bilinear)                
+            else:
+                rasOut = rasIn.rio.reproject(epsgOut, shape = (newHeight, newWidth),
+                                            resampling = Resampling.bilinear)
+            rasOut.rio.to_raster(os.path.join(pathout, bname + f'_epsg{epsgOut}_res{res}.tif'))
