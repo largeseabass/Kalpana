@@ -20,7 +20,7 @@ import dask
 #import dask.array as da
 from tqdm.dask import TqdmCallback
 #from vyperdatum.points import VyperPoints
-from scipy.spatial import KDTree
+from scipy.spatial import KDTree, distance
 from itertools import islice
 
 '''
@@ -842,16 +842,18 @@ def fort14togdf(filein, epsgIn, epsgOut):
         head = list(islice(fin, 2))
         data = [int(x) for x in head[1].split()]
     ## read nodes
-    nodes = np.loadtxt(filein, skiprows = 2, max_rows = data[1], usecols = (1, 2))
+    nodes = np.loadtxt(filein, skiprows = 2, max_rows = data[1], usecols = (1, 2, 3))
     ## read elements
     elem = np.loadtxt(filein, skiprows = 2 + data[1], max_rows = data[0], usecols = (2, 3, 4)) - 1
     x = nodes[:, 0]
     y = nodes[:, 1]
+    z = nodes[:, 2]
     ## matplotlib triangulation
     tri = mpl.tri.Triangulation(x, y, elem)
     ## select the coordinate of each vertex
     xvertices = x[tri.triangles[:]]
     yvertices = y[tri.triangles[:]]
+    zvertices = z[tri.triangles[:]]
     listElem = np.stack((xvertices, yvertices), axis = 2)
     ## define polygons and GeoDataFrame
     pols = [Polygon(x) for x in listElem]
@@ -864,6 +866,7 @@ def fort14togdf(filein, epsgIn, epsgOut):
         gdf = gdf.to_crs(epsgOut)
     
     ## get centroids and vertices coordinatess
+    gdf['zmean'] = -1*zvertices.mean(axis = 1)
     gdf['centX'] = xvertices.mean(axis = 1)
     gdf['centY'] = yvertices.mean(axis = 1)
     gdf['v1'] = elem[:, 0]
@@ -875,6 +878,7 @@ def fort14togdf(filein, epsgIn, epsgOut):
         pass
     else:
         gdf['repLen'] = [np.round(geom.length/3, 3) for geom in gdf.geometry]
+        gdf['minLen'] = [np.min([distance.euclidean(pi, pj) for pi, pj in zip(geom.boundary.coords[:-1], geom.boundary.coords[1:])]) for geom in gdf.geometry]
         gdf['elemArea'] = [np.round(geom.area, 3) for geom in gdf.geometry]
     
     return gdf
