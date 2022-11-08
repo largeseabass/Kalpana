@@ -4,6 +4,7 @@ import subprocess
 import sys
 import time
 import dask
+from tqdm.dask import TqdmCallback
 import geopandas as gpd
 import rioxarray as rxr
 from rasterio.crs import CRS
