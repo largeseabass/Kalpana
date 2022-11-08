@@ -7,7 +7,7 @@ import geopandas as gpd
 import rioxarray as rxr
 from rasterio.crs import CRS
 from rasterio.enums import Resampling
-from export import nc2shp, mesh2gdf, fort14togdf
+from kalpana.export import nc2shp, mesh2gdf, fort14togdf
 
 '''
     All functions using GRASS GRIS has an argument 'pkg' which is the grass package.
