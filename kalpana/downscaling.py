@@ -341,7 +341,8 @@ def setGrassEnv(grassVer, pathGrassLocation, createGrassLocation, pkg0, pkg1,
         print(f'        init grass: {(time.time() - ta)/60: 0.3f} min')
         
         ta = time.time()
-        grassRasList = importRasters_parallel(rasFiles, pkg0, myepsg) ## try rasters with different resolution? check if rasters are in different crs that location
+        grassRasList = importRasters(rasFiles, pkg0, myepsg) ## try rasters with different resolution? check if rasters are in different crs that location
+        ### oarallel
         print(f'        import raster: {(time.time() - ta)/60: 0.3f} min')
         
         ta = time.time()
@@ -563,11 +564,11 @@ def postProcessStatic(compAdcirc2dem, floodDepth, kalpanaShp, clumpThreshold, pk
                             type = 'area', format = 'ESRI_Shapefile', flags = 'se', quiet = True, overwrite = True)
             print(f'        export as shp depth: {(time.time() - ta)/60:0.3f}')
         
-def runStatic(ncFile, levels, epsgOut, pathOut,  grassVer, pathRasFiles, rasterFiles,
+def runStatic(ncFile, levels, epsgOut, pathOut,  grassVer, pathRasFiles, rasterFiles, meshFile,
               epsgIn=4326, vUnitIn='m', vUnitOut='ft', var='zeta_max', conType ='polygon', 
               subDomain=None, exportMesh=False, dzFile=None, zeroDif=-20, 
               nameGrassLocation=None, createGrassLocation=True, createLocMethod='from_raster', attrCol='zMean', repLenGrowing=1.0, 
-              meshFile=None, compAdcirc2dem=True, floodDepth=False, clumpThreshold='from_mesh', perMinElemArea=1, ras2vec=False):
+              compAdcirc2dem=True, floodDepth=False, clumpThreshold='from_mesh', perMinElemArea=1, ras2vec=False):
     ''' Run static downscaling method and the nc2shp function of the kalpanaExport module.
         Parameters
         ********************************************************************************************************************
@@ -575,8 +576,9 @@ def runStatic(ncFile, levels, epsgOut, pathOut,  grassVer, pathRasFiles, rasterF
         ********************************************************************************************************************
             ncFile: string
                 path of the adcirc output, must be a netcdf file
-            levels: np.array
-                Contour levels. The max value in the entire doman and over all timesteps is added to the requested levels.
+            levels:list
+                Contour levels. Min, Max and Step. Max is not included as in np.arange method.
+                Values must be in vUnitOut vertical unit.
             epsgOut: int
                 coordinate system of the output shapefile
             pathout: string
@@ -591,6 +593,12 @@ def runStatic(ncFile, levels, epsgOut, pathOut,  grassVer, pathRasFiles, rasterF
             rasterFiles: list or str
                 name(s) of the raster file(s). If equals to 'all', all dems inside the 'pathRasters' will be used.
                 In case 'all' is used, the pathRasters folder must has only DEM files.
+            meshFile: string
+                path of the raster file with the mesh elements if it was generated beforehand. Otherwise. it is the filename to
+                save the mesh shapefile and after the raster with the representative mesh elements size.
+                This file does not depend of the simulation itself, it is only related to the mesh. This means it is not 
+                necessary to export the adcirc mesh as a shapefile each time a simulation is downscaled. 
+                For speed up the downscaling process, this input should not point to a raster only the first time a mesh is used!
         ********************************************************************************************************************
         ***************************************** OPTIONAL inputs of nc2shp function ***************************************
         ********************************************************************************************************************
@@ -607,7 +615,9 @@ def runStatic(ncFile, levels, epsgOut, pathOut,  grassVer, pathRasFiles, rasterF
                 uper-left x, upper-left y, lower-right x and lower-right y coordinates. The crs must be the same of the
                 adcirc input file.
             exportMesh: boolean. Default False
-                True for export the mesh geodataframe and also save it as a shapefile
+                True to export and save it as a shapefile. It needs to be true in case the raster with the representative
+                mesh size wasn't generated before. If that raster, which is required for the downscaled, is not available,
+                this parameter must be True.
             dzFile: str
                 full path of the pickle file with the vertical difference between datums
                 for each mesh node
@@ -630,10 +640,6 @@ def runStatic(ncFile, levels, epsgOut, pathOut,  grassVer, pathRasFiles, rasterF
                 factor of the representative length of each triangle used as a maximum
                 growing distance. Adcirc results are expanded until the distance to the nearest non-null cel
                 is equals to the repLenFactor times the representative length of the triangle of the grown cell is in.
-            meshFile: string
-                path of the raster file with the mesh elements. This file does not depend of the simulation it self, only on the mesh.
-                So it is not necessary to export the adcirc mesh as a shapefile each time a simulation is downscaled. For speed up the
-                downscaling process this input should be not None only the first time a mesh is used.
             compAdcirc2dem: boolean. DEFAULT True
                 True for removing ADCIRC cells with values lower than the dem.
             floodDepth: boolean . DEFAULT True
