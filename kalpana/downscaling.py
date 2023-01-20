@@ -471,7 +471,7 @@ def clumping(rasterGrown, rasterOrg, rasterNew, clumpSizeThreshold, pkg):
     
     ## get clump ID of the ones with more cells than thres
     clumpsID = [x for x, y in zip(areas[::2], areas[1::2]) if int(y) >=  clumpThres]
-    reclassList = ''.join([f"{i} = -1\n" for i in clumpsID)
+    reclassList = ''.join([f"{i} = -1\n" for i in clumpsID])
     
     pkg.write_command('r.reclass', input = 'temp2', output = 'temp3', rules = '-', 
                 stdin = reclassList, quiet = True, overwrite = True)
