@@ -471,7 +471,7 @@ def clumping(rasterGrown, rasterOrg, rasterNew, clumpSizeThreshold, pkg):
     
     ## get clump ID of the ones with more cells than thres
     clumpsID = [x for x, y in zip(areas[::2], areas[1::2]) if int(y) >=  clumpThres]
-    reclassList = ''.join([f"{i} = -1\n" for i in areas[::2]])
+    reclassList = ''.join([f"{i} = -1\n" for i in clumpsID])
     
     pkg.write_command('r.reclass', input = 'temp2', output = 'temp3', rules = '-', 
                 stdin = reclassList, quiet = True, overwrite = True)
@@ -646,7 +646,7 @@ def runStatic(ncFile, levels, epsgOut, pathOut,  grassVer, pathRasFiles, rasterF
                 True for transform water levels to water depth. False for export water levelss.
             clumpThreshold: str or int or float. Default 'from_mesh'
                 threshold to delete isolated cells. Groups of cells smaller than threshold will be removed if are not connected to the main water area. 
-                If equals 'from_mesh' the minimum area of the triangles elements is used to define the threshold. If int or float, this value will be used as
+                If equals to 'from_mesh', the minimum area of the triangular elements is used to define the threshold. If int or float, this value will be used as
                 threshold, the unit of this number must be in the map units
             perMinElemArea: float. Default 1
                 percentage of the smaller element's area used as a threshold to delete unconnected groups of raster cells. Only used if
@@ -673,7 +673,11 @@ def runStatic(ncFile, levels, epsgOut, pathOut,  grassVer, pathRasFiles, rasterF
         sys.exit('Downscaling can not be done for the lat lon crs.')
     
     if clumpThreshold == 'from_mesh':
-        thres = mesh.elemArea.min() * perMinElemArea
+        thres = mesh.elemArea.min() * perMinElemArea ## meter**2
+        if vUnitIn == 'm' and vUnitOut == 'ft':
+            thres = thres * (3.28084)**2 ## ft**2
+        elif vUnitIn == 'm' and vUnitOut == 'm':
+            pass
     else:
         thres = clumpThreshold
 
