@@ -386,9 +386,8 @@ def setupGrowing(kalpanaShp, attrCol, mesh2ras, meshFile, minArea, pkg, myepsg, 
     print(f'        Kalpana shape to raster: {(time.time() - t0)/60:0.2f} min')
     
     if exportOrg == True: #export adcirc output without growing as tif
-        pkg.run_command('r.out.gdal', input = 'grownKalpanaRast', flags = 'm', format = 'GTiff', nodata = -9999, 
-                   output = os.path.join(pathOut, f'{fileOut}.tif'), 
-                   overwrite = True)
+        pkg.run_command('r.out.gdal', input = 'kalpanaRast', flags = 'm', format = 'GTiff', 
+                        nodata = -9999, output = f'{kalpanaShp[:-4]}.tif', overwrite = True)
     
     if mesh2ras == True: #exportMesh is True so meshFile is a shapefile
     
@@ -582,7 +581,7 @@ def runStatic(ncFile, levels, epsgOut, pathOut,  grassVer, pathRasFiles, rasterF
             ncFile: string
                 path of the adcirc output, must be a netcdf file
             levels:list
-                Contour levels. Min, Max and Step. Max is not included as in np.arange method.
+                Contour levels. Min, Max and Step. Max IS included.
                 Values must be in vUnitOut vertical unit.
             epsgOut: int
                 coordinate system of the output shapefile
