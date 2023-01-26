@@ -354,7 +354,7 @@ def setGrassEnv(grassVer, pathGrassLocation, createGrassLocation, pkg0, pkg1,
         initGrass(pathGrassLocation, pkg1)
         print(f'        init grass: {(time.time() - ta)/60: 0.3f} min')
         
-def setupGrowing(kalpanaShp, attrCol, mesh2ras, meshFile, minArea, pkg, myepsg):
+def setupGrowing(kalpanaShp, attrCol, mesh2ras, meshFile, minArea, pkg, myepsg, exportOrg):
     ''' Preprocess kalpana shape file
         Parameters
             kalpanaShp: str
@@ -384,6 +384,11 @@ def setupGrowing(kalpanaShp, attrCol, mesh2ras, meshFile, minArea, pkg, myepsg):
                     type = 'area', output = 'kalpanaRast', use = 'attr', 
                     quiet = True, attribute_column = attrCol, overwrite = True)
     print(f'        Kalpana shape to raster: {(time.time() - t0)/60:0.2f} min')
+    
+    if exportOrg == True: #export adcirc output without growing as tif
+        pkg.run_command('r.out.gdal', input = 'grownKalpanaRast', flags = 'm', format = 'GTiff', nodata = -9999, 
+                   output = os.path.join(pathOut, f'{fileOut}.tif'), 
+                   overwrite = True)
     
     if mesh2ras == True: #exportMesh is True so meshFile is a shapefile
     
@@ -568,7 +573,7 @@ def runStatic(ncFile, levels, epsgOut, pathOut,  grassVer, pathRasFiles, rasterF
               epsgIn=4326, vUnitIn='m', vUnitOut='ft', var='zeta_max', conType ='polygon', 
               subDomain=None, exportMesh=False, dzFile=None, zeroDif=-20, 
               nameGrassLocation=None, createGrassLocation=True, createLocMethod='from_raster', attrCol='zMean', repLenGrowing=1.0, 
-              compAdcirc2dem=True, floodDepth=False, clumpThreshold='from_mesh', perMinElemArea=1, ras2vec=False):
+              compAdcirc2dem=True, floodDepth=False, clumpThreshold='from_mesh', perMinElemArea=1, ras2vec=False, exportOrg=False):
     ''' Run static downscaling method and the nc2shp function of the kalpanaExport module.
         Parameters
         ********************************************************************************************************************
@@ -653,6 +658,8 @@ def runStatic(ncFile, levels, epsgOut, pathOut,  grassVer, pathRasFiles, rasterF
                 clumpThreshold is "from_mesh".
             ras2vec: boolean. Default False
                 For speed up the process is recommended that raster files should not be converted to shapefiles (False).
+            exportOrg: boolean. Default False
+                True to export the raw adcirc outputs (without growing) as a DEM. Useful for debuging.
     '''
     t0 = time.time()
     pathaux = os.path.dirname(pathOut)
@@ -709,7 +716,7 @@ def runStatic(ncFile, levels, epsgOut, pathOut,  grassVer, pathRasFiles, rasterF
      ## setup growing
     print(f'    Start Downscaling preprocess')
     ## here the thres must be in square meters
-    setupGrowing(pathOut, attrCol, exportMesh, meshFile, thres, gs, epsgOut)
+    setupGrowing(pathOut, attrCol, exportMesh, meshFile, thres, gs, epsgOut, exportOrg)
     t3 = time.time()
     print(f'    Downscaling preprocess: {(t3 - t2)/60:0.3f} min')
     
