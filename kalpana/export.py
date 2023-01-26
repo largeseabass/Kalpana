@@ -234,7 +234,7 @@ def filledContours2gpd(tri, data, levels, epsg, pbar=False):
                 The name of the variable, the date and other info are also included in the columns
     '''
     ## compute filled contours using matplotlib
-    contoursf = plt.tricontourf(tri, data, levels = levels)
+    contoursf = plt.tricontourf(tri, data, levels = levels, extend = 'max')
     ## close the generated plot
     plt.close()
     
@@ -337,7 +337,7 @@ def contours2gpd(tri, data, levels, epsg, pbar=False):
                 The name of the variable, the date and other info are also included in the columns
     '''
     ## compute non-filled contours using matplotlib
-    contours = plt.tricontour(tri, data, levels = levels)
+    contours = plt.tricontour(tri, data, levels = levels, extend = 'max')
     plt.close()
     ## define dask delayed function to transform the matplotlib object to shapely polygons
     @dask.delayed
