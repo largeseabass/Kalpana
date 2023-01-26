@@ -234,7 +234,7 @@ def filledContours2gpd(tri, data, levels, epsg, pbar=False):
                 The name of the variable, the date and other info are also included in the columns
     '''
     ## compute filled contours using matplotlib
-    contoursf = plt.tricontourf(tri, data, levels = levels, extend = 'max')
+    contoursf = plt.tricontourf(tri, data, levels = levels)#, extend = 'max')
     ## close the generated plot
     plt.close()
     
