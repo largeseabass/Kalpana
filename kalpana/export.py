@@ -214,7 +214,7 @@ def checkTimeVarying(ncObj):
     
     return timeVar
 
-def filledContours2gpd(tri, data, levels, epsg, pbar=False):
+def filledContours2gpd(tri, data, levels, epsg, step, orgMax, pbar=False):
     ''' Dataset to GeoDataFrame with filled contours as shapely polygons.
         A dask delayed python decorator is used to handle the code's parallelization.
         Parameters
@@ -226,6 +226,10 @@ def filledContours2gpd(tri, data, levels, epsg, pbar=False):
                 Contour levels. The max value in the entire doman and over all timesteps is added to the requested levels.
             epsg: int
                 coordinate system
+            step: int or float
+                step size of the levels requested
+            orgMax: int or float
+                max level requested
             pbar: boolean. Default False
                 False for not displaying a progress bar with tqdm
         Returns
@@ -295,7 +299,7 @@ def filledContours2gpd(tri, data, levels, epsg, pbar=False):
         
         return geoms
     ## define tasks to call the delayed function
-    tasks = [getGeom(icoll, coll) for icoll, coll in enumerate(contoursf.collections)]
+    tasks = [getGeom(icoll, coll) for icoll, coll in enumerate(contoursf.collections[:-1])]
     ## call dask without progress bar
     if pbar == False:
         daskGeoms = dask.compute(tasks, scheduler = 'threads')
@@ -311,13 +315,13 @@ def filledContours2gpd(tri, data, levels, epsg, pbar=False):
     gdf = gpd.GeoDataFrame(crs = epsg, geometry = list(data[0]), 
                            index = range(len(data[0])))
     ## add extra columns
-    gdf['zMin'] = data[1]
-    gdf['zMean'] = data[3]
-    gdf['zMax'] = data[2]
+    gdf['zMin'] = np.clip(data[1], None, orgMax - step/2)
+    gdf['zMean'] = np.clip(data[3], None, orgMax)
+    gdf['zMax'] = np.clip(data[2], None, orgMax + step/2)
     
     return gdf
 
-def contours2gpd(tri, data, levels, epsg, pbar=False):
+def contours2gpd(tri, data, levels, epsg, orgMax, pbar=False):
     ''' Dataset to GeoDataFrame with contours as shapely LineStrings
         A dask delayed python decorator is used to handle the code's parallelization.
         Parameters
@@ -329,6 +333,8 @@ def contours2gpd(tri, data, levels, epsg, pbar=False):
                 Contour levels. The max value in the entire doman and over all timesteps is added to the requested levels.
             epsg: int
                 coordinate system
+            orgMax: int or float
+                max level requested
             pbar: boolean. Default False
                 False for not displaying a progress bar with tqdm
         Returns
@@ -372,11 +378,11 @@ def contours2gpd(tri, data, levels, epsg, pbar=False):
                            index = range(len(data[0])))
    
    ## add extra columns
-    gdf['z'] = data[1]
+    gdf['z'] = np.clip(data[1], None, orgMax)
     
     return gdf
 
-def runExtractContours(ncObj, var, levels, conType, epsg, dzFile=None, zeroDif=-20):
+def runExtractContours(ncObj, var, levels, conType, epsg, stepLevel, orgMaxLevel, dzFile=None, zeroDif=-20):
     ''' Run "contours2gpd" or "filledContours2gpd" if npro = 1 or "contours2gpd_mp" or "filledContours2gpd_mp" if npro > 1.
         Parameters
             ncObj: netCDF4._netCDF4.Dataset
@@ -389,6 +395,10 @@ def runExtractContours(ncObj, var, levels, conType, epsg, dzFile=None, zeroDif=-
                 'polyline' or 'polygon'
             epsg: int
                 coordinate system
+            stepLevel: int or float
+                step size of the levels requested
+            orgMaxLevel: int or float
+                max level requested
             dzFile: str
                 full path of the pickle file with the vertical difference between datums
                 for each mesh node
@@ -409,7 +419,7 @@ def runExtractContours(ncObj, var, levels, conType, epsg, dzFile=None, zeroDif=-
     ## get extra info: variable name, variable long-name and unit name
     vname = ncObj[var].name
     lname = ncObj[var].long_name
-    u = ncObj[var].units
+    #u = ncObj[var].units
 
     ## matplotlib triangulation
     tri = mpl.tri.Triangulation(x, y, nv)
@@ -436,11 +446,11 @@ def runExtractContours(ncObj, var, levels, conType, epsg, dzFile=None, zeroDif=-
         ## non-filled contours
         if conType == 'polyline':
             labelCol = 'z'
-            gdf = contours2gpd(tri, aux, levels, epsg, True)
+            gdf = contours2gpd(tri, aux, levels, epsg, orgMaxLevel, True)
         ## filled contours
         elif conType == 'polygon':
             labelCol = 'zMean'
-            gdf = filledContours2gpd(tri, aux, levels, epsg, True)
+            gdf = filledContours2gpd(tri, aux, levels, epsg, stepLevel, orgMaxLevel, True)
         ## error message
         else:
             print('only "polyline" and "polygon" types are supported!')
@@ -448,7 +458,7 @@ def runExtractContours(ncObj, var, levels, conType, epsg, dzFile=None, zeroDif=-
         ## add more info to the geodataframe
         gdf['variable'] = [vname]*len(gdf)
         gdf['name'] = [lname]*len(gdf)
-        gdf['labelCol'] = [f'{x:0.2f} {u}' for x in gdf[labelCol]]
+        #gdf['zLabelCol'] = [f'{x:0.2f} {unit}' for x in gdf[labelCol]]
     ## time varying
     else:
         ## get epoch
@@ -505,7 +515,7 @@ def runExtractContours(ncObj, var, levels, conType, epsg, dzFile=None, zeroDif=-
         gdf = gpd.GeoDataFrame(pd.concat(listGdf, axis=0, ignore_index=True), crs=epsg)
         gdf['variable'] = [vname]*len(gdf)
         gdf['name'] = [lname]*len(gdf)
-        gdf['labelCol'] = [f'{x:0.2f} {u}' for x in gdf[labelCol]]
+        #gdf['zlabelCol'] = [f'{x:0.2f} {uinit}' for x in gdf[labelCol]]
         
     return gdf
 
@@ -728,7 +738,7 @@ def nc2shp(ncFile, var, levels, conType, pathOut, epsgOut, vUnitOut='ft', vUnitI
             var: string
                 Name of the variable to export
             levels:list
-                Contour levels. Min, Max and Step. Max is not included as in np.arange method.
+                Contour levels. Min, Max and Step. Max IS included as in np.arange method.
                 Values must be in vUnitOut vertical unit.
             conType: string
                 'polyline' or 'polygon'
@@ -769,14 +779,18 @@ def nc2shp(ncFile, var, levels, conType, pathOut, epsgOut, vUnitOut='ft', vUnitI
         levels = [l / 3.2808399 for l in levels]
     elif vUnitIn == 'ft' and vUnitOut == 'm':
         levels = [l * 3.2808399 for l in levels]
+    maxmax = np.max(nc[var][:].data)
+    orgMaxLevel = levels[1]
+    stepLevel = levels[2]
     ## list of levels to array
-    levels_aux = np.arange(levels[0], levels[1] + levels[2], levels[2])
+    levels_aux = np.arange(levels[0], np.ceil(maxmax), stepLevel)
     ## given levels will now match the avarege value of each interval
-    levels_aux = levels_aux - levels[2]/2
+    levels_aux = levels_aux - stepLevel/2
     levels = levels_aux.copy()
     
     t00 = time.time()
-    gdf = runExtractContours(nc, var, levels, conType, epsgIn, dzFile, zeroDif)
+    gdf = runExtractContours(nc, var, levels, conType, epsgIn, stepLevel, orgMaxLevel, 
+                            dzFile, zeroDif)
     print(f'    Ready with the contours extraction: {(time.time() - t00)/60:0.3f} min')
     
     ## clip contours if requested
