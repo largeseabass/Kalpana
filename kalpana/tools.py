@@ -10,9 +10,21 @@ def demToPNG(fileIn, pathOut, noData = 255, tileSize = 5_000):
         Parameters
             fileIn: str
                 full path of the input DEM
-            pathout
+            pathOut: str
+                path of the folder to save the png files
+            noData: int. Default 255
+                pixel value for the non data DEM cells
+            tileSize.int Default 5_000
+                target size of the output pngs. If equals to -1,
+                full DEM is exported as one png.
+        Output
+            if tileSize !== -1:
+                out: list
+                    tiled pngs
+                demAux: numpy array
+                    full DEM as numpy array
     '''
-    pathout = Path(pathout)
+    pathout = Path(pathOut)
     dem = rxr.open_rasterio(fileIn)
     ## get nodata value of dem
     noDataDem = dem.rio.nodata
