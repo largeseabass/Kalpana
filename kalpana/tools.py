@@ -24,7 +24,7 @@ def demToPNG(fileIn, pathOut, noData = 255, tileSize = 5_000):
                 demAux: numpy array
                     full DEM as numpy array
     '''
-    pathout = Path(pathOut)
+    pathOut = Path(pathOut)
     dem = rxr.open_rasterio(fileIn)
     ## get nodata value of dem
     noDataDem = dem.rio.nodata
