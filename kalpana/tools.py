@@ -49,7 +49,7 @@ def demToPNG(fileIn, pathOut, noData = 255, tileSize = 5_000):
             for y in ys:
                 dummy.append(counter)
                 ## get tiles of the dem
-                aux = demAux[x:x + tileSize, y:y + tileSize]
+                aux = demAux[y:y + tileSize, x:x + tileSize]
                 ## reshape to drop 3rd dimension
                 tileNp = aux.reshape((aux.shape[0], aux.shape[1]))
                 ## transform it to image
@@ -93,9 +93,9 @@ def mergeTiles(pathIn, txtFile, fileOut):
             im_arr = np.array(im)
             list_v.append(im_arr)
             counter += 1
-        aux_v = np.concatenate(list_v, axis = 1)
+        aux_v = np.concatenate(list_v, axis = 0)
         list_h.append(aux_v)
-    img_arr_all = np.concatenate(list_h, axis = 0)
+    img_arr_all = np.concatenate(list_h, axis = 1)
     im_all = Image.fromarray(img_arr_all)
     im_all.save(fileOut)
     
