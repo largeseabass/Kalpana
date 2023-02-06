@@ -22,6 +22,7 @@ from tqdm.dask import TqdmCallback
 #from vyperdatum.points import VyperPoints
 from scipy.spatial import KDTree, distance
 from itertools import islice
+from pathlib import Path
 
 '''
     EXPLAIN WORKFLOW
@@ -940,7 +941,7 @@ def createColorbar(levels, varName, units, cmap='viridis', fileName='tempColorba
 def kmlScreenOverlays(kml, colorbar=True, colorbarFile='tempColorbar.jpg', logo=True, 
                         logoFile='logo.png', logoUnits='fraction', logoDims=None):
     ''' Create screen overlay for the kml file with the colorbar and the project logo.
-        TODO: check logo chile path when calling the code from github repo
+        TODO: check logo file path when calling the code from github repo
         Parameters
             kml: simplekml object.
                 output of lines2kml or poly2kml functions.
@@ -975,10 +976,12 @@ def kmlScreenOverlays(kml, colorbar=True, colorbarFile='tempColorbar.jpg', logo=
     if logo == True:
         ## look logo in the github repository
         if logoFile == 'logo.png':
-            aux0 = __file__
-            aux1 = aux0.split('\\')
-            aux2 = '\\'.join(aux1[:-2])
-            logoFile = os.path.join(aux2, 'documentation', 'logoForKmz', logoFile)
+            aux0 = Path(__file__)
+            #aux1 = aux0.split('\\')
+            #aux2 = '\\'.join(aux1[:-2])
+            #print(aux2)
+            #logoFile = os.path.join(aux2, 'documentation', 'logoForKmz', logoFile)
+            logoFile = aux0.parents[1]/'documentation'/'logoForKmz'/logoFile
         ## define new overlay
         screen2 = kml.newscreenoverlay(name = 'logo')
         screen2.icon.href = logoFile
@@ -1025,8 +1028,8 @@ def lines2kml(gdf, levels, cmap='viridis'):
     kml = simplekml.Kml()
     ## loop through geometries
     for i in gdf.index:
-        ## new linestring object
-        ls = kml.newlinestring(name = gdf.loc[i, 'labelCol'])
+        ## new linestring object, column name hardcoded
+        ls = kml.newlinestring(name = gdf.loc[i, 'zMean'])
         try:
             ## one line
             coords = list(gdf.loc[i, 'geometry'].coords)
@@ -1044,7 +1047,7 @@ def lines2kml(gdf, levels, cmap='viridis'):
         r, g, b, a = m.to_rgba(value)
         ls.style.linestyle.color = simplekml.Color.rgb(int(255*r), int(255*g), int(255*b))
         ls.style.linestyle.width = 2
-        ls.description = gdf.loc[i, 'labelCol']
+        ls.description = gdf.loc[i, 'zMean']
     
     return kml
     
@@ -1083,7 +1086,7 @@ def polys2kml(gdf, levels, cmap='viridis'):
             if len(innerCoords) > 0:
                 innerCoords = [list(interior.coords) for interior in innerCoords]
             ## define kml polygon
-            pol = kml.newpolygon(name = gdf.loc[i, 'labelCol'])
+            pol = kml.newpolygon(name = gdf.loc[i, 'zMean'])
             ## assign outer and inner coordinates
             pol.outerboundaryis = outerCoords
             pol.innerboundaryis = innerCoords
@@ -1094,7 +1097,7 @@ def polys2kml(gdf, levels, cmap='viridis'):
             col = simplekml.Color.rgb(int(255*r), int(255*g), int(255*b))
             pol.style.linestyle.color = col
             pol.style.linestyle.width = 2
-            pol.description = gdf.loc[i, 'labelCol']
+            pol.description = gdf.loc[i, 'zMean']
             pol.style.polystyle.color = simplekml.Color.changealphaint(100, col)
         
         except:
@@ -1107,7 +1110,7 @@ def polys2kml(gdf, levels, cmap='viridis'):
                 if len(innerCoords) > 0:
                     innerCoords = [list(interior.coords) for interior in innerCoords]
                 
-                pol = kml.newpolygon(name = gdf.loc[i, 'labelCol'])
+                pol = kml.newpolygon(name = gdf.loc[i, 'zMean'])
                 pol.outerboundaryis = outerCoords
                 pol.innerboundaryis = innerCoords
                 value = gdf.loc[i, 'zMean']
@@ -1115,7 +1118,7 @@ def polys2kml(gdf, levels, cmap='viridis'):
                 col = simplekml.Color.rgb(int(255*r), int(255*g), int(255*b))
                 pol.style.linestyle.color = col
                 pol.style.linestyle.width = 2
-                pol.description = gdf.loc[i, 'labelCol']
+                pol.description = gdf.loc[i, 'zMean']
                 pol.style.polystyle.color = simplekml.Color.changealphaint(100, col)
 
     return kml
@@ -1160,7 +1163,7 @@ def splitOneGeom(geom):
     ## split polyhon using the diabonal
     newGeoms = split(geom, ls)
     ## define new geodataframe with the split geometries
-    gdfSub = gpd.GeoDataFrame(geometry = [a for a in newGeoms], crs = 4326)
+    gdfSub = gpd.GeoDataFrame(geometry = list(newGeoms.geoms), crs = 4326)
     return gdfSub
 
 def splitAllGeoms(gdf, thres = 20_000):
@@ -1216,9 +1219,9 @@ def splitAllGeoms(gdf, thres = 20_000):
     
     return gdfSubAll
     
-def nc2kmz(ncFile, var, levels, conType, epsg, pathOut, vUnitIn, vUnitOut, vDatumIn, vDatumOut, 
+def nc2kmz(ncFile, var, levels, conType, epsg, pathOut, vUnitIn='m', vUnitOut='m', vDatumIn='tss', vDatumOut='tss',
            subDomain=None, overlay=True, logoFile='logo.png', colorbarFile='tempColorbar.jpg', 
-           cmap='viridis', thresVertices=20_000):
+           cmap='viridis', thresVertices=20_000, dzFile=None, zeroDif=-20):
     ''' Run all necesary functions to export adcirc outputs as kmz.
         Parameters
             ncFile: string
@@ -1233,9 +1236,9 @@ def nc2kmz(ncFile, var, levels, conType, epsg, pathOut, vUnitIn, vUnitOut, vDatu
                 coordinate system
             pathout: string
                 complete path of the output file (*.shp or *.gpkg)
-            vUnitIn, vUnitOut: string
+            vUnitIn, vUnitOut: string. Default 'm'
                 input and output vertical units. For the momment only supported 'm' and 'ft'
-            vdatumIn, vdatumOut: string
+            vdatumIn, vdatumOut: string. Default 'tss'
                 name of the input and output vertical datums. Mean sea level is "tss"
                 For checking the available datums:
                 from vyperdatum.pipeline import datum_definition
@@ -1252,9 +1255,20 @@ def nc2kmz(ncFile, var, levels, conType, epsg, pathOut, vUnitIn, vUnitOut, vDatu
                 name of the colorbar img
             cmap: string. Default 'viridis'
                 name of the colormap. If varName is depth, the topo colormap from cmocean will be used
-            thresVertices: int
+            thresVertices: int. Default 20_000
                 maximum number of vertices allowed per polygon. If a polygon has more vertices, the
-                katana function will be used.
+                katana function will be used. Google Earth has problems displaying polygons with large
+                amount of vertices, while smaller this number, better will be the vizualiation but the
+                execution time of the extracting function will be longer.
+            dzFile: str
+                full path of the pickle file with the vertical difference between datums
+                for each mesh node
+            zeroDif: int
+                threshold for using nearest neighbor interpolation to change datum. Points below
+                this value won't be changed.
+        Returns
+            gdf: GeoDataFrame
+                gdf with contours
     '''
     ## read netcdf
     nc = netcdf.Dataset(ncFile, 'r')
@@ -1268,10 +1282,13 @@ def nc2kmz(ncFile, var, levels, conType, epsg, pathOut, vUnitIn, vUnitOut, vDatu
     ## colormap name for bathymetry
     if var == 'depth':
         cmap = 'topo'
+        
+    stepLevel = levels[2]
+    orgMaxLevel = levels[1]
     ## arrray with levels
     levels = np.arange(levels[0], levels[1], levels[2])
     ## extract contours
-    gdf = runExtractContours(nc, var, levels, conType, epsg)
+    gdf = runExtractContours(nc, var, levels, conType, epsg, stepLevel, orgMaxLevel, dzFile, zeroDif)
     if conType == 'polygon':
         ## split polygons if necessary
         gdf['nVertices'] = countVertices(gdf)
