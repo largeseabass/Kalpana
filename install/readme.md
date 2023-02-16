@@ -1,21 +1,20 @@
-Setting up python for using will depend on what Kalpana feature you want to use. 
+Setting up python for using Kalpana will depend on which of the features listed below you want to use. 
 For more detail go to https://ccht.ccee.ncsu.edu/ or to the paper (Rucker et al., 2021).
 
-(1) Exporting ADCIRC outputs as Shapefiles, GeoPackage or KMZ
-(2) Downscale ADCIRC maximum water elevation output to a finer resolution
+(1) Exporting ADCIRC outputs as Shapefiles, GeoPackage or KMZ.
+(2) Downscale ADCIRC maximum water elevation output to a finer resolution.
 
 
 Feature (1)
-Create a conda environment using the provided yml file. This file was created to setup the environment on an HPC, 
-so name and prefix (location to store python packages) need to be changed.
+Create a conda environment using the provided yml file. Change name and prefix (location to store python packages).
 To create a conda environment from a yml file and store the packages in a specified path, use:
 conda env create -f kalpana_env_H2.yml -p /path/to/the/environment
 
 Feature (2)
-First you need to have GRASS GIS installed (https://grass.osgeo.org/), versions >= 8.2 has been tested.
+First you need to have GRASS GIS installed (https://grass.osgeo.org/), versions >= 8.2 are supported.
 How to setup the python environment varies across OS. 
 
-For Ubuntu or an linux HPC you need to create a conda enviroment in the usual way following instructions in the conda documentation 
+If using Ubuntu or a linux HPC you need to create a conda enviroment in the usual way following instructions in the conda documentation 
 (https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html)
 
 For Windows you need to use the python installation that comes with GRASS GIS, and you can not have more python installations on
