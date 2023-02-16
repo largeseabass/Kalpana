@@ -1,18 +1,26 @@
-Instructions for set-up the python environment to work on Windows
-1) Install miniconda.
-2) Open a cmd prompt and navigate to the install folder on the github repo.
-3) Open the yml file  with a text editor and modify last line (prefix) with the path of your miniconda folder.
-4) Execute the command: conda env create -f kalpana.yml
-5) Install the 4 wheel files available on the install folder. Follow the next order: gdal, fiona, shapely and rtree. For installing, execute: pip install name_of_the_wheel_file (use tab for auto-complete).
-6) Install geopandas using pip: pip install geopandas
+Setting up python for using will depend on what Kalpana feature you want to use. 
+For more detail go to https://ccht.ccee.ncsu.edu/ or to the paper (Rucker et al., 2021).
 
-Instructions for set-up the python environment to work on Ubuntu 20.04
-1) Install virtual env: apt-get install python3-venv
-2) Create a python virtual environment: python3 -m venv my_env_project
-3) Activate the environment: source/my_env_project/bin/activate
-4) pip install -r ubuntuReqs.txt
+(1) Exporting ADCIRC outputs as Shapefiles, GeoPackage or KMZ
+(2) Downscale ADCIRC maximum water elevation output to a finer resolution
 
-Instructions for set-up the environment in Henry2
-1) Add python 3 to the PATH: module load conda
-2) Create an environment using kalpana_env_H2.yml: conda env create -f kalpana_env_H2.yml -p /path/to/the/environment
-* The environment can be to big to be instaled in the HOME directory, so specifying the path all packages will be instaled in a diferent place.
+
+Feature (1)
+Create a conda environment using the provided yml file. This file was created to setup the environment on an HPC, 
+so name and prefix (location to store python packages) need to be changed.
+To create a conda environment from a yml file and store the packages in a specified path, use:
+conda env create -f kalpana_env_H2.yml -p /path/to/the/environment
+
+Feature (2)
+First you need to have GRASS GIS installed (https://grass.osgeo.org/), versions >= 8.2 has been tested.
+How to setup the python environment varies across OS. 
+
+For Ubuntu or an linux HPC you need to create a conda enviroment in the usual way following instructions in the conda documentation 
+(https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html)
+
+For Windows you need to use the python installation that comes with GRASS GIS, and you can not have more python installations on
+your system. For using the grass python.exe, you need to launch grass and then use the grass cmd. In this case you are not able to use
+conda, so you need to install all the necessary dependencies using pip. Soon we will provide a requierements.txt file to install all
+packages.
+
+Examples of how to setup and running kalpana will come soon!
