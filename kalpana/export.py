@@ -322,7 +322,7 @@ def filledContours2gpd(tri, data, levels, epsg, step, orgMax, pbar=False):
     
     return gdf
 
-def contours2gpd(tri, data, levels, epsg, orgMax, pbar=False):
+def contours2gpd(tri, data, levels, epsg, pbar=False):
     ''' Dataset to GeoDataFrame with contours as shapely LineStrings
         A dask delayed python decorator is used to handle the code's parallelization.
         Parameters
@@ -334,8 +334,6 @@ def contours2gpd(tri, data, levels, epsg, orgMax, pbar=False):
                 Contour levels. The max value in the entire doman and over all timesteps is added to the requested levels.
             epsg: int
                 coordinate system
-            orgMax: int or float
-                max level requested
             pbar: boolean. Default False
                 False for not displaying a progress bar with tqdm
         Returns
@@ -348,19 +346,18 @@ def contours2gpd(tri, data, levels, epsg, orgMax, pbar=False):
     plt.close()
     ## define dask delayed function to transform the matplotlib object to shapely polygons
     @dask.delayed
-    def getGeom(icoll, coll):
-
-        ## iteration over lines
-        geoms = []
-        # loop over contours
-        for icon, con in enumerate(contours.collections):
-            ## get value of the contour
-            val = contours.levels[icon]
-            paths = con.get_paths()
-            ## dismiss lines with less than 3 vertices
-            aux0 = [(LineString(path.vertices), val) for path in paths if len(path.vertices) > 2]
-            geoms.append(aux0)
-        return geoms
+    def getGeom(ic, c):
+        
+        ## get value of contour
+        val = contours.levels[ic]
+        ## get contour
+        paths = c.get_paths()
+    
+        ## Path to linestring. Dismiss lines with less than 3 vertices
+        aux0 = [(LineString(path.vertices), val) for path in paths if len(path.vertices) > 2]
+        
+        return aux0
+    
     ## define tasks to call the delayed function
     tasks = [getGeom(icoll, coll) for icoll, coll in enumerate(contours.collections)]
     ## call dask without progress bar
@@ -379,7 +376,7 @@ def contours2gpd(tri, data, levels, epsg, orgMax, pbar=False):
                            index = range(len(data[0])))
    
    ## add extra columns
-    gdf['z'] = np.clip(data[1], None, orgMax)
+    gdf['z'] = data[1]#np.clip(data[1], None, orgMax)
     
     return gdf
 
@@ -447,7 +444,7 @@ def runExtractContours(ncObj, var, levels, conType, epsg, stepLevel, orgMaxLevel
         ## non-filled contours
         if conType == 'polyline':
             labelCol = 'z'
-            gdf = contours2gpd(tri, aux, levels, epsg, orgMaxLevel, True)
+            gdf = contours2gpd(tri, aux, levels, epsg, True)
         ## filled contours
         elif conType == 'polygon':
             labelCol = 'zMean'
@@ -780,14 +777,19 @@ def nc2shp(ncFile, var, levels, conType, pathOut, epsgOut, vUnitOut='ft', vUnitI
         levels = [l / 3.2808399 for l in levels]
     elif vUnitIn == 'ft' and vUnitOut == 'm':
         levels = [l * 3.2808399 for l in levels]
-    maxmax = np.max(nc[var][:].data)
-    orgMaxLevel = levels[1]
-    stepLevel = levels[2]
-    ## list of levels to array
-    levels_aux = np.arange(levels[0], np.ceil(maxmax), stepLevel)
-    ## given levels will now match the avarege value of each interval
-    levels_aux = levels_aux - stepLevel/2
-    levels = levels_aux.copy()
+    if conType == 'polygon':   
+        maxmax = np.max(nc[var][:].data)
+        orgMaxLevel = levels[1]
+        stepLevel = levels[2]
+        ## list of levels to array
+        levels_aux = np.arange(levels[0], np.ceil(maxmax), stepLevel)
+        ## given levels will now match the avarege value of each interval    
+        levels_aux = levels_aux - stepLevel/2
+        levels = levels_aux.copy()
+    else:
+        orgMaxLevel = levels[1]
+        stepLevel = levels[2]
+        levels = np.arange(levels[0], orgMaxLevel + stepLevel, stepLevel)
     
     t00 = time.time()
     gdf = runExtractContours(nc, var, levels, conType, epsgIn, stepLevel, orgMaxLevel, 
