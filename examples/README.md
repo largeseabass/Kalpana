@@ -23,7 +23,7 @@ We also provide two Docker images to run the downscaling tool of *Kalpana*. The 
 This image has all the necessary files and has been configure to downscale *ADCIRC* simulations with *NC9* mesh on a DEM of North Carolina.
 1. Pull the Docker image from Docker hub
 'docker pull tacuevas/kalpana_nc:latest'
-2. Create a folder, place the maxele.63.nc and runKalpanaStatic.inp files inside, and 'cd' to it. Examples of these two files can be found in [this google drive] (https://drive.google.com/drive/folders/1cbQzN4SrLs_rVlz9q8zHCKbFtQpLO5CG?usp=sharing).
+2. Create a folder, place the maxele.63.nc and runKalpanaStatic.inp files inside, and 'cd' to it. Examples of these two files can be found in [this google drive](https://drive.google.com/drive/folders/1cbQzN4SrLs_rVlz9q8zHCKbFtQpLO5CG?usp=sharing).
 3. Modify runKalpanaStatic.inp if neccesary.
 4. Run the container declaring a volume so kalpana can access the folder created in *step 2*.
 'docker run -it -v "$(pwd)":/home/kalpana/inputs tacuevas/kalpana_nc:latest'
