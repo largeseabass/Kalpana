@@ -29,7 +29,12 @@ This image has all the necessary files and has been configure to downscale *ADCI
 'docker run -it -v "$(pwd)":/home/kalpana/inputs tacuevas/kalpana_nc:latest'
 
 **Interactive**<br>
-This image is ready to run kalpana interactively, all the python packages and *GRASS GIS* are installed. You need to copy the examples *downscaling_exampleXX.py*, the necessary inputs (availables in the google drive above) to the container and the *Kalpana* *downscaling.py* and *export.py* python modules from this repo.
+This image is ready to run kalpana interactively, all the python packages and *GRASS GIS* are installed. You need to copy the examples *downscaling_exampleXX.py*, the necessary inputs (availables [here](https://drive.google.com/drive/folders/1cbQzN4SrLs_rVlz9q8zHCKbFtQpLO5CG?usp=sharing)) to the container and the *Kalpana* *downscaling.py* and *export.py* python modules from this repo.
+
+The steps for running are:
+
+1) 'docker pull tacuevas/kalpana_m:latest'
+2) 'docker run -it tacuevas/kalpana_m:latest'
 
 Each example is explained below:
 
