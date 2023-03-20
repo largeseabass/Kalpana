@@ -2,9 +2,9 @@
 # coding: utf-8
 
 ## add github repo to path
-import sys
-sys.path.append(r'/rsstu/users/j/jcdietri/DHS-CRCoE-2016-2020/tacuevas/github/Kalpana')
-from kalpana.downscaling import runStatic
+#import sys
+#sys.path.append(r'/rsstu/users/j/jcdietri/DHS-CRCoE-2016-2020/tacuevas/github/Kalpana')
+from downscaling import runStatic
 
 '''
 Example for doing the static downscaling using an existing grass location, and importing
@@ -15,7 +15,7 @@ docstring of the function in the github repository.
 
 
 ## full path of the maxele file
-ncFile = r'/share/jcdietri/tacuevas/kalpana/inputs/maxele.63.nc'
+ncFile = r'/home/kalpana/maxele.63.nc'
 ## contour levels to use in the downscaling
 ## from 0 to 11 (included) every 1
 levels = [0, 11, 1]
@@ -23,16 +23,16 @@ levels = [0, 11, 1]
 epsgOut = 6543
 ## full path for the shape file with the maxele contours
 ## same path is used for saving rasters and the grass location
-pathOut = r'/share/jcdietri/tacuevas/kalpana/outputs2/test01/maxele_florence.shp'
+pathOut = r'/home/kalpana/maxele_florence.shp'
 ## version of grass 8.2 and 8.3 works
 grassVer = 8.3
 ## path of the downscaling rasters
-pathRasFiles = r'/share/jcdietri/tacuevas/kalpana/inputs'
+pathRasFiles = r'/home/kalpana'
 ## rasters filenames, can be a list if more than one. 
 ## 'all' for importing ALL THE FILES in pathRasFiles 
-rasterFiles = 'ncDEMs'
+rasterFiles = 'ncDEMs_epsg6543'
 ## full path of the raster with the mesh element size
-meshFile = r'/share/jcdietri/tacuevas/kalpana/outputs2/test01/NC9.tif'
+meshFile = r'/home/kalpana/NC9.tif'
 ## crs of adcirc output (default value)
 epsgIn = 4326
 ## vertical unit of the maxele
@@ -50,14 +50,14 @@ subDomain = None
 exportMesh = False
 ## full path of pickle file with vertical datum differences for all mesh nodes
 ## proprocess step
-dzFile = r'/share/jcdietri/tacuevas/kalpana/inputs/NC9mesh_from_tss2navd88.pkl'
+dzFile = r'/home/kalpana/NC9mesh_from_tss2navd88.pkl'
 ## threshold to do apply the vertical datum difference, below -20 vyperdatum gives weird
 ## results
 zeroDif = -20
 ## full path of the grass location if a existing one will be used
 ## if None a new location called 'grassLoc' is created. A new location is created in
 ## example_03
-nameGrassLocation = r'/share/jcdietri/tacuevas/kalpana/outputs2/test01/grassLoc'
+nameGrassLocation = 'grassLoc'
 ## Boolean for creating grass location, in this example it was created as a preprocess
 ## step. In example_03 it is created.
 createGrassLocation = False
