@@ -2,7 +2,7 @@
 
 *Kalpana* has two main capabilities:
 
-1. Visualization: export *ADCIRC* output as geospatial vector data for visualization using QGIS o any similar GIS sofware.
+1. Visualization: export *ADCIRC* output as geospatial vector data for visualization using QGIS or any similar GIS sofware.
 2. Downscaling: transform the *ADICRC* *maxele.63.nc* file to a constant and higher resolution DEM considering small scale topographic/bathymetric features (Rucker et. al 2021).
 
 ## Visualization
