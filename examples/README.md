@@ -1,4 +1,4 @@
-# Examples
+# Examples for using Kalpana
 
 *Kalpana* has two main capabilities:
 
