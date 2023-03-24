@@ -236,7 +236,7 @@ def polygon_compare(ncfile, levels, gdf):
     gl.right_labels = False
     ax[1].set_title('Polygon Contours from nc2shp()')
 
-    gdf.plot(column = 'zMean', legend = True, cmap = 'viridis', 
+    gdf.plot(column = 'zMean', legend = True, cmap = 'viridis', vmin = -0.25, vmax = 2.75, 
             legend_kwds={'label': 'Max water level [m MSL]', 'orientation': 'vertical', 'fraction': 0.046, 'pad': 0.04}, 
             ax = ax[1], aspect = 'equal')
 
