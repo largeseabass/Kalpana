@@ -23,6 +23,7 @@ from tqdm.dask import TqdmCallback
 from scipy.spatial import KDTree, distance
 from itertools import islice
 from pathlib import Path
+import rioxarray as rxr
 
 '''
     EXPLAIN WORKFLOW
@@ -585,15 +586,33 @@ def readSubDomain(subDomain, epsg):
         ## kml or shp file
         if subDomain.endswith('.shp') or subDomain.endswith('.gpkg'):
             gdfSubDomain = gpd.read_file(subDomain)
+            ## get exterior coordinates of the polygon
+            xAux, yAux = gdfSubDomain.geometry[0].exterior.coords.xy
+            extCoords = list(zip(xAux, yAux))
+            poly = Polygon(extCoords)
+            gdfSubDomain = gpd.GeoDataFrame(geometry = [poly], crs = epsg)
+        
         elif subDomain.endswith('.kml'):
             gpd.io.file.fiona.drvsupport.supported_drivers['KML'] = 'rw'
             gdfSubDomain = gpd.read_file(subDomain, driver = 'KML')
-        else:
-            print('Only shape, geopackage and kml formats are suported for sub domain generation!')
-            sys.exit(-1)
-        ## get exterior coordinates of the polygon
-        xAux, yAux = gdfSubDomain.geometry[0].exterior.coords.xy
-        extCoords = list(zip(xAux, yAux))
+            ## get exterior coordinates of the polygon
+            xAux, yAux = gdfSubDomain.geometry[0].exterior.coords.xy
+            extCoords = list(zip(xAux, yAux))
+            poly = Polygon(extCoords)
+            gdfSubDomain = gpd.GeoDataFrame(geometry = [poly], crs = epsg)
+        
+        else: ## try read DEMs
+            try:
+                r = rxr.open_rasterio(subDomain)
+                bbox = r.rio.bounds()
+                ulLon, ulLat, lrLon, lrLat = bbox[0], bbox[3], bbox[2], bbox[1]
+                extCoords = [(ulLon, ulLat), (ulLon, lrLat), (lrLon, lrLat), (lrLon, ulLat), (ulLon, ulLat)]
+                poly = Polygon(extCoords)
+                gdfSubDomain = gpd.GeoDataFrame(geometry = [poly], crs = epsg)
+
+            except:
+                print('Only shape, geopackage, kml formats and rasters are suported for sub domain generation!')
+                sys.exit(-1)            
     
     elif type(subDomain) == list and len(subDomain) == 4:
         ## only UL lon, UL lat, LR lon LR lat
@@ -830,6 +849,10 @@ def nc2shp(ncFile, var, levels, conType, pathOut, epsgOut, vUnitOut='ft', vUnitI
         print('    Exporting mesh')
         t0 = time.time()
         mesh = mesh2gdf(nc, epsgIn, epsgOut)
+        
+        if subDomain is not None:
+            mesh = mesh.clip(mesh, subDom)
+        
         mesh.to_file(os.path.join(os.path.dirname(pathOut), f'{meshName}.shp'))
         print(f'    Mesh exported: {(time.time() - t0)/60:0.3f} min')
         print(f'Ready with exporting code after: {(time.time() - t00)/60:0.3f} min')

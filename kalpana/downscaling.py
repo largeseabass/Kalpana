@@ -9,7 +9,7 @@ import geopandas as gpd
 import rioxarray as rxr
 from rasterio.crs import CRS
 from rasterio.enums import Resampling
-from kalpana.export import nc2shp, mesh2gdf, fort14togdf
+from kalpana.export import nc2shp, mesh2gdf, fort14togdf, readSubDomain
 
 '''
     All functions using GRASS GRIS has an argument 'pkg' which is the grass package.
@@ -341,7 +341,7 @@ def setGrassEnv(grassVer, pathGrassLocation, createGrassLocation, pkg0, pkg1,
         print(f'        init grass: {(time.time() - ta)/60: 0.3f} min')
         
         ta = time.time()
-        grassRasList = importRasters(rasFiles, pkg0, myepsg) ## try rasters with different resolution? check if rasters are in different crs that location
+        grassRasList = importRasters_parallel(rasFiles, pkg0, myepsg) ## try rasters with different resolution? check if rasters are in different crs that location
         ### oarallel
         print(f'        import raster: {(time.time() - ta)/60: 0.3f} min')
         
