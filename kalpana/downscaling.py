@@ -370,6 +370,8 @@ def setupGrowing(kalpanaShp, attrCol, mesh2ras, meshFile, minArea, pkg, myepsg, 
                 Minimum size of area to be imported (square meters) 
             myepsg: int
                 Output coordinate reference system
+            exportOrg: boolean. Default False
+                True to export the raw adcirc outputs (without growing) as a DEM. Useful for debuging.
                 
     '''
     ## import shape file with max water level
@@ -408,8 +410,17 @@ def setupGrowing(kalpanaShp, attrCol, mesh2ras, meshFile, minArea, pkg, myepsg, 
                         output = os.path.splitext(meshFile)[0] + '.tif')
         print(f'        Mesh exported as raster: {(time.time() - t0)/60:0.2f} min')
         
-    else: #exportMesh is True so meshFile is a raster
-        importRasters_parallel([meshFile], pkg, myepsg)
+    else: # raster mesh already exists
+        ## try to find file in the grass location
+        ## get only name of the meshFile without extension
+        mfile = os.path.splitext(os.path.basename(meshFile))[0]
+        ## find file
+        mfile_dct = pkg.find_file(mfile)
+        ## import if it isn't in the location
+        if mfile_dct['name'] == '':
+            importRasters_parallel([meshFile], pkg, myepsg)
+        else: ## pass if it is already in there
+            pass
 
 def staticGrow(repLenFactor, pkg, meshFile):
     ''' Execture r.grow.distance algorithm
