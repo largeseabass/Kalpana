@@ -14,6 +14,7 @@ import matplotlib.cm as cm
 from matplotlib.lines import Line2D
 from numpy import linspace
 import contextily as cxt
+import cmocean.cm as cmo
 
 
 def plot_maxele(ncfile, levels):
@@ -181,7 +182,7 @@ def plot_polygons(gdf):
     ax[1].set_title('North Carolina')
 
 
-    gdf.plot(column = 'zMean', legend = True, cmap = 'viridis', 
+    gdf.plot(column = 'zMean', legend = True, cmap = 'viridis', vmin = -0.25, vmax = 2.75,
             legend_kwds={'label': 'Max water level [m MSL]', 'orientation': 'vertical', 'fraction': 0.046, 'pad': 0.04}, 
             ax = ax[1], aspect = 'equal')
 
@@ -236,7 +237,7 @@ def polygon_compare(ncfile, levels, gdf):
     gl.right_labels = False
     ax[1].set_title('Polygon Contours from nc2shp()')
 
-    gdf.plot(column = 'zMean', legend = True, cmap = 'viridis', 
+    gdf.plot(column = 'zMean', legend = True, cmap = 'viridis', vmin = -0.25, vmax = 2.75,
             legend_kwds={'label': 'Max water level [m MSL]', 'orientation': 'vertical', 'fraction': 0.046, 'pad': 0.04}, 
             ax = ax[1], aspect = 'equal')
 
@@ -346,3 +347,43 @@ def plot_overlay(ncfile, levels, gdf):
         ax.plot(x, y, row['z'], color = 'k', linewidth = 0.8)
 
     ax.legend([Line2D([0], [0], color='k', lw=1.1)], ['Polyline Contour'], loc = 'lower right')
+
+def mesh_plot(gdf, column, bounds, title, cmap = None):
+    '''    
+    x and y inputs must be in same coordinate system as gdf
+    bounds = [minx, maxx, miny, maxy]
+    automatically chooses topo plot features if column is zmean, viridis otherwise
+    can override cmap with cmap
+    '''
+
+    trim = gdf[(gdf['centX'] <= bounds[0]-0.5) | (gdf['centX'] >= bounds[1]+0.5) | (gdf['centY'] <= bounds[2]-0.5) | (gdf['centY'] >= bounds[3]+0.5)].index
+    mygdf = gdf.drop(trim, inplace=False)
+
+    fig, ax = plt.subplots(figsize = (8, 6), subplot_kw={'projection': ccrs.PlateCarree()}, constrained_layout=True)
+
+    plt.xlabel('Longitude [deg]')
+    plt.ylabel('Latitude [deg]')
+    ax.set_xlim([bounds[0], bounds[1]])
+    ax.set_ylim([bounds[2], bounds[3]])
+    gl = ax.gridlines(draw_labels=True, dms=True, x_inline=False, y_inline=False, alpha=0.5, linestyle='--')
+    gl.top_labels = False
+    gl.right_labels = False
+    ax.add_feature(cfeature.LAND)
+    ax.add_feature(cfeature.COASTLINE,lw=0.25)
+    ax.add_feature(cfeature.LAKES)
+    ax.set_xlabel('Longitude [deg]')
+    ax.set_ylabel('Latitude [deg]')
+    fig.suptitle(title, fontsize = 16)
+
+    if column == 'zmean':
+        if cmap == None:
+            cmap = cmo.topo
+        # plot the mesh with elevations correlation with topo colormap
+        mygdf.plot(column = column, legend = True, ax = ax, aspect = 'equal', cmap = cmap, vmin = min(gdf['zmean']), vmax = -min(gdf['zmean']),
+                legend_kwds={'label': 'Element Area [square km]', 'orientation': 'vertical', 'fraction': 0.046, 'pad': 0.04},
+                )
+    else:
+        mygdf.plot(column = column, legend = True, ax = ax, aspect = 'equal', cmap = 'viridis', edgecolor='black', linewidth = 0.2,
+                legend_kwds={'label': 'Element Area [square km]', 'orientation': 'vertical', 'fraction': 0.046, 'pad': 0.04},
+                )
+
