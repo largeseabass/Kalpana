@@ -912,6 +912,7 @@ def fort14togdf(filein, epsgIn, epsgOut):
     gdf['v1'] = elem[:, 0]
     gdf['v2'] = elem[:, 1]
     gdf['v3'] = elem[:, 2]
+    gdf['id'] = range(len(gdf))
     
     ## compute area and presentative length if the output crs is not lat/lon
     if epsgOut == 4326:
