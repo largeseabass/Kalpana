@@ -627,9 +627,9 @@ def runStatic(ncFile, levels, epsgOut, pathOut,  grassVer, pathRasFiles, rasterF
             conType: string. DEFAULT polygon
                 'polyline' or 'polygon'
             subDomain: str or list. Default None
-                complete path of the subdomain polygon kml or shapelfile, or list with the
+                complete path of the subdomain polygon kml,  shapelfile or tif, or list with the
                 uper-left x, upper-left y, lower-right x and lower-right y coordinates. The crs must be the same of the
-                adcirc input file.
+                adcirc input file. It is recommended to use the same downscaling raster.
             exportMesh: boolean. Default False
                 True to export and save it as a shapefile. It needs to be true in case the raster with the representative
                 mesh size wasn't generated before. If that raster, which is required for the downscaled, is not available,
@@ -784,7 +784,7 @@ def meshRepLen2raster(fort14, epsgIn, epsgOut, pathOut, grassVer, pathRasFiles, 
     '''
     ## create gdf from fort14 file with elements as geometries
     t0 = time.time()
-    gdfMesh = fort14togdf(fort14, 4326, 6543)
+    gdfMesh = fort14togdf(fort14, espgIn, epsgOut)
     print(f'fort14 to mesh: {(time.time() - t0)/60:0.3f} min')
     
     ## clip contours if requested
@@ -792,7 +792,7 @@ def meshRepLen2raster(fort14, epsgIn, epsgOut, pathOut, grassVer, pathRasFiles, 
         t0 = time.time()
         subDom = readSubDomain(subDomain, epsgIn)
         gdfMesh = gpd.clip(gdfMesh, subDom)
-        print(f'Clip mesh using subfomain: {(time.time() - t0)/60:0.3f} min')
+        print(f'Clip mesh using subdomain: {(time.time() - t0)/60:0.3f} min')
         
     ## export gdf as shapefile
     t0 = time.time()
