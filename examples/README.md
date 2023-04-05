@@ -54,7 +54,7 @@ The steps for running the container:
 5) Run the python scripts from the Docker container with: <br>
     *python3 downscaling_exampleXX.py* 
 
-Each example is explained below:
+Each example is explained below, remember to modify the paths!
 
 **Example 01** (downscaling_example01.py)<br>
 This script creates a grass location importing the DEM for downscaling and also creates a new DEM with same resolution and extend with the size of the mesh triangles. This step is key for the downscaling and can be run in advance, since it only depends on the mesh (*fort.14*).
