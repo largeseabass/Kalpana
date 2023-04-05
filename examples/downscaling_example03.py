@@ -24,7 +24,9 @@ vUnitIn = 'm'
 vUnitOut = 'ft'
 var = 'zeta_max'
 conType = 'polygon'
-subDomain = None
+## full path of file (kml, kmz, shp, gpkg or tif) to crop the domain.
+## in this case we will use the same downscaling raster bounding box as the subdomain
+subDomain = os.path.join(pathRasFiles, rasterFiles)
 exportMesh = True
 dzFile = r'/home/kalpana/NC9mesh_from_tss2navd88.pkl'
 zeroDif = -20 

@@ -10,14 +10,15 @@ a new DEM with same resolution and extend with the size of the mesh triangles. T
 is key for the downscaling and can be run in advance, since only depends on the mesh.
 '''
 
-fort14 = 'fort.14' ## path of the fort.14 file
+fort14 = r'/home/kalpana/fort.14' ## path of the fort.14 file
 epsgIn = 4326 ## CRS for lat/lon
 epsgOut = 6543 ## projected CRS for NC
-pathOut = 'NC9.shp' ## full path of the output shapefile 
+pathOut = r'/home/kalpana/NC9.shp' ## full path of the output shapefile 
 grassVer = 8.3
-pathRasFiles = '.'
+pathRasFiles = 'r/home/kalpana'
 rasterFiles = 'ncDEMs_epsg6543'
+## in this case we will use the same downscaling raster bounding box as the subdomain
 
 meshRepLen2raster(fort14, epsgIn, epsgOut, pathOut, grassVer, pathRasFiles, rasterFiles, 
-                  subDomain=None, nameGrassLocation=None, createGrassLocation=True, 
+                  subDomain=os.path.join(pathRasFiles, rasterFiles), nameGrassLocation=None, createGrassLocation=True, 
                   createLocMethod='from_raster')

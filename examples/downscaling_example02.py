@@ -43,8 +43,9 @@ vUnitOut = 'ft'
 var = 'zeta_max'
 ## contours type. Always 'polygon' for downscaling
 conType = 'polygon'
-## full path of file (kml, kmz, shp or gpkg) to crop the domain.
-subDomain = None
+## full path of file (kml, kmz, shp, gpkg or tif) to crop the domain.
+## in this case we will use the same downscaling raster bounding box as the subdomain
+subDomain = os.path.join(pathRasFiles, rasterFiles)
 ## boolean for exporting the mesh as a shape file from maxele, not necessary in this
 ## case since mesh was exported as preprocess. In example_03 it is exported.
 exportMesh = False

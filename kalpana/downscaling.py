@@ -581,7 +581,7 @@ def postProcessStatic(compAdcirc2dem, floodDepth, kalpanaShp, clumpThreshold, pk
         
 def runStatic(ncFile, levels, epsgOut, pathOut,  grassVer, pathRasFiles, rasterFiles, meshFile,
               epsgIn=4326, vUnitIn='m', vUnitOut='ft', var='zeta_max', conType ='polygon', 
-              subDomain=None, exportMesh=False, dzFile=None, zeroDif=-20, 
+              subDomain=None, epsgSubDom=None, exportMesh=False, dzFile=None, zeroDif=-20, 
               nameGrassLocation=None, createGrassLocation=True, createLocMethod='from_raster', attrCol='zMean', repLenGrowing=1.0, 
               compAdcirc2dem=True, floodDepth=False, clumpThreshold='from_mesh', perMinElemArea=1, ras2vec=False, exportOrg=False,
               finalOutToLatLon=True):
@@ -630,6 +630,8 @@ def runStatic(ncFile, levels, epsgOut, pathOut,  grassVer, pathRasFiles, rasterF
                 complete path of the subdomain polygon kml,  shapelfile or tif, or list with the
                 uper-left x, upper-left y, lower-right x and lower-right y coordinates. The crs must be the same of the
                 adcirc input file. It is recommended to use the same downscaling raster.
+            epsgSubDom:int
+                coordinate reference system of the subDomain
             exportMesh: boolean. Default False
                 True to export and save it as a shapefile. It needs to be true in case the raster with the representative
                 mesh size wasn't generated before. If that raster, which is required for the downscaled, is not available,
@@ -681,12 +683,12 @@ def runStatic(ncFile, levels, epsgOut, pathOut,  grassVer, pathRasFiles, rasterF
     
     if exportMesh == True:
         gdf, mesh = nc2shp(ncFile, var, levels, conType, pathOut, epsgOut, 
-                           vUnitOut, vUnitIn, epsgIn, subDomain, exportMesh,
+                           vUnitOut, vUnitIn, epsgIn, subDomain, epsgSubDom, exportMesh,
                            os.path.splitext(os.path.basename(meshFile))[0], dzFile, zeroDif)
         meshFile = os.path.join(pathaux, os.path.splitext(os.path.basename(meshFile))[0] + '.shp')
     else:
         gdf = nc2shp(ncFile, var, levels, conType, pathOut, epsgOut, vUnitOut, 
-                     vUnitIn, epsgIn, subDomain, dzFile = dzFile, zeroDif = zeroDif)
+                     vUnitIn, epsgIn, subDomain, epsgSubDom, dzFile = dzFile, zeroDif = zeroDif)
         mesh = gpd.read_file(os.path.splitext(meshFile)[0]+'.shp', ignore_geometry = True) # not fully sure if it is the best way
     
     if epsgOut == 4326:
@@ -748,7 +750,7 @@ def runStatic(ncFile, levels, epsgOut, pathOut,  grassVer, pathRasFiles, rasterF
     
     if finalOutToLatLon == True:
         finalOut = os.path.join(pathaux, os.path.basename(pathOut)[:-4] + '_level_downscaled.tif') 
-        reproject(finalOut, pathaux, epsgOut = 4326)
+        reprojectRas(finalOut, pathaux, epsgOut = 4326)
     print(f'Kalpana finished sucsesfully after: {(t5 - t0)/60:0.3f} min')
     print(f'Output files saved on: {pathaux}')
     
@@ -784,7 +786,7 @@ def meshRepLen2raster(fort14, epsgIn, epsgOut, pathOut, grassVer, pathRasFiles, 
     '''
     ## create gdf from fort14 file with elements as geometries
     t0 = time.time()
-    gdfMesh = fort14togdf(fort14, espgIn, epsgOut)
+    gdfMesh = fort14togdf(fort14, epsgIn, epsgOut)
     print(f'fort14 to mesh: {(time.time() - t0)/60:0.3f} min')
     
     ## clip contours if requested
