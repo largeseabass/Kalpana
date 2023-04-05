@@ -747,7 +747,7 @@ def nc2xr(ncFile, var):
     return ds
     
 def nc2shp(ncFile, var, levels, conType, pathOut, epsgOut, vUnitOut='ft', vUnitIn='m', epsgIn=4326,
-           subDomain=None, exportMesh=False, meshName=None, dzFile=None, zeroDif=-20):
+           subDomain=None, epsgSubDom=None, exportMesh=False, meshName=None, dzFile=None, zeroDif=-20):
     ''' Run all necesary functions to export adcirc outputs as shapefiles.
         Parameters
             ncFile: string
@@ -818,9 +818,10 @@ def nc2shp(ncFile, var, levels, conType, pathOut, epsgOut, vUnitOut='ft', vUnitI
     ## clip contours if requested
     if subDomain is not None:
         t0 = time.time()
-        subDom = readSubDomain(subDomain, epsgIn)
-        gdf = gpd.clip(gdf, subDom)
+        subDom = readSubDomain(subDomain, epsgSubDom)
+        gdf = gpd.clip(gdf, subDom.to_crs(epsgIn))
         print(f'    Cliping contours based on mask: {(time.time() - t0)/60:0.3f} min')
+    
     ## change vertical units if requested
     if vUnitIn == vUnitOut:
         pass
@@ -828,6 +829,7 @@ def nc2shp(ncFile, var, levels, conType, pathOut, epsgOut, vUnitOut='ft', vUnitI
         t0 = time.time()
         gdf = gdfChangeVerUnit(gdf, vUnitIn, vUnitOut)
         print(f'    Vertical units changed: {(time.time() - t0)/60:0.3f} min')
+    
     ## change CRS if requested
     if epsgIn == epsgOut:
         pass
@@ -835,6 +837,7 @@ def nc2shp(ncFile, var, levels, conType, pathOut, epsgOut, vUnitOut='ft', vUnitI
         t0 = time.time()
         gdf = gdf.to_crs(epsgOut)
         print(f'    Changing CRS: {(time.time() - t0)/60:0.3f} min')
+    
     ## save output shape file
     t0 = time.time()
     if pathOut.endswith('.shp'):
@@ -844,6 +847,7 @@ def nc2shp(ncFile, var, levels, conType, pathOut, epsgOut, vUnitOut='ft', vUnitI
     elif pathOut.endswith('.wkt'):
         gdf.to_csv(pathOut)
     print(f'    Saving file: {(time.time() - t0)/60:0.3f} min')
+    
     ## export mesh if requested
     if exportMesh == True:
         print('    Exporting mesh')
@@ -851,7 +855,7 @@ def nc2shp(ncFile, var, levels, conType, pathOut, epsgOut, vUnitOut='ft', vUnitI
         mesh = mesh2gdf(nc, epsgIn, epsgOut)
         
         if subDomain is not None:
-            mesh = mesh.clip(mesh, subDom)
+            mesh = gpd.clip(mesh, subDom.to_crs(epsgOut))
         
         mesh.to_file(os.path.join(os.path.dirname(pathOut), f'{meshName}.shp'))
         print(f'    Mesh exported: {(time.time() - t0)/60:0.3f} min')
@@ -912,6 +916,7 @@ def fort14togdf(filein, epsgIn, epsgOut):
     gdf['v1'] = elem[:, 0]
     gdf['v2'] = elem[:, 1]
     gdf['v3'] = elem[:, 2]
+    gdf['id'] = range(len(gdf))
     
     ## compute area and presentative length if the output crs is not lat/lon
     if epsgOut == 4326:

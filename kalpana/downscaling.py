@@ -388,7 +388,7 @@ def setupGrowing(kalpanaShp, attrCol, mesh2ras, meshFile, minArea, pkg, myepsg, 
     print(f'        Kalpana shape to raster: {(time.time() - t0)/60:0.2f} min')
     
     if exportOrg == True: #export adcirc output without growing as tif
-        pkg.run_command('r.out.gdal', input = 'kalpanaRast', flags = 'm', format = 'GTiff', 
+        pkg.run_command('r.out.gdal', input = 'kalpanaRast', flags = 'cm', format = 'GTiff', 
                         nodata = -9999, output = f'{kalpanaShp[:-4]}.tif', overwrite = True)
     
     if mesh2ras == True: #exportMesh is True so meshFile is a shapefile
@@ -406,7 +406,7 @@ def setupGrowing(kalpanaShp, attrCol, mesh2ras, meshFile, minArea, pkg, myepsg, 
         print(f'        Mesh shape to raster: {(time.time() - t0)/60:0.2f} min')
         t0 = time.time()
         pkg.run_command('r.out.gdal', input = os.path.splitext(os.path.basename(meshFile))[0], 
-                        flags = 'm', format = 'GTiff', nodata = -9999, overwrite = True,
+                        flags = 'cm', format = 'GTiff', nodata = -9999, overwrite = True,
                         output = os.path.splitext(meshFile)[0] + '.tif')
         print(f'        Mesh exported as raster: {(time.time() - t0)/60:0.2f} min')
         
@@ -537,7 +537,7 @@ def postProcessStatic(compAdcirc2dem, floodDepth, kalpanaShp, clumpThreshold, pk
     
     ta = time.time()
     # export raster as tif
-    pkg.run_command('r.out.gdal', input = 'grownKalpanaRastLevel', flags = 'm', format = 'GTiff', nodata = -9999, 
+    pkg.run_command('r.out.gdal', input = 'grownKalpanaRastLevel', flags = 'mc', format = 'GTiff', nodata = -9999, 
                    output = os.path.join(pathOut, f'{fileOut}_level_downscaled.tif'), 
                    overwrite = True)
     print(f'        export as tif level: {(time.time() - ta)/60:0.3f}')
@@ -562,7 +562,7 @@ def postProcessStatic(compAdcirc2dem, floodDepth, kalpanaShp, clumpThreshold, pk
         
         ta = time.time()
         # export raster as tif
-        pkg.run_command('r.out.gdal', input = 'grownKalpanaRastDepth', flags = 'm', format = 'GTiff', nodata = -9999, 
+        pkg.run_command('r.out.gdal', input = 'grownKalpanaRastDepth', flags = 'cm', format = 'GTiff', nodata = -9999, 
                        output = os.path.join(pathOut, f'{fileOut}_depth_downscaled.tif'), 
                        overwrite = True)
         print(f'        export as tif depth: {(time.time() - ta)/60:0.3f}')
@@ -581,9 +581,10 @@ def postProcessStatic(compAdcirc2dem, floodDepth, kalpanaShp, clumpThreshold, pk
         
 def runStatic(ncFile, levels, epsgOut, pathOut,  grassVer, pathRasFiles, rasterFiles, meshFile,
               epsgIn=4326, vUnitIn='m', vUnitOut='ft', var='zeta_max', conType ='polygon', 
-              subDomain=None, exportMesh=False, dzFile=None, zeroDif=-20, 
+              subDomain=None, epsgSubDom=None, exportMesh=False, dzFile=None, zeroDif=-20, 
               nameGrassLocation=None, createGrassLocation=True, createLocMethod='from_raster', attrCol='zMean', repLenGrowing=1.0, 
-              compAdcirc2dem=True, floodDepth=False, clumpThreshold='from_mesh', perMinElemArea=1, ras2vec=False, exportOrg=False):
+              compAdcirc2dem=True, floodDepth=False, clumpThreshold='from_mesh', perMinElemArea=1, ras2vec=False, exportOrg=False,
+              finalOutToLatLon=True):
     ''' Run static downscaling method and the nc2shp function of the kalpanaExport module.
         Parameters
         ********************************************************************************************************************
@@ -626,9 +627,11 @@ def runStatic(ncFile, levels, epsgOut, pathOut,  grassVer, pathRasFiles, rasterF
             conType: string. DEFAULT polygon
                 'polyline' or 'polygon'
             subDomain: str or list. Default None
-                complete path of the subdomain polygon kml or shapelfile, or list with the
+                complete path of the subdomain polygon kml,  shapelfile or tif, or list with the
                 uper-left x, upper-left y, lower-right x and lower-right y coordinates. The crs must be the same of the
-                adcirc input file.
+                adcirc input file. It is recommended to use the same downscaling raster.
+            epsgSubDom:int
+                coordinate reference system of the subDomain
             exportMesh: boolean. Default False
                 True to export and save it as a shapefile. It needs to be true in case the raster with the representative
                 mesh size wasn't generated before. If that raster, which is required for the downscaled, is not available,
@@ -670,6 +673,8 @@ def runStatic(ncFile, levels, epsgOut, pathOut,  grassVer, pathRasFiles, rasterF
                 For speed up the process is recommended that raster files should not be converted to shapefiles (False).
             exportOrg: boolean. Default False
                 True to export the raw adcirc outputs (without growing) as a DEM. Useful for debuging.
+            finalOutToLatLon: boolean. Default True
+                True to reproject final downscaled dem to lat/lon.
     '''
     t0 = time.time()
     pathaux = os.path.dirname(pathOut)
@@ -678,12 +683,12 @@ def runStatic(ncFile, levels, epsgOut, pathOut,  grassVer, pathRasFiles, rasterF
     
     if exportMesh == True:
         gdf, mesh = nc2shp(ncFile, var, levels, conType, pathOut, epsgOut, 
-                           vUnitOut, vUnitIn, epsgIn, subDomain, exportMesh,
+                           vUnitOut, vUnitIn, epsgIn, subDomain, epsgSubDom, exportMesh,
                            os.path.splitext(os.path.basename(meshFile))[0], dzFile, zeroDif)
         meshFile = os.path.join(pathaux, os.path.splitext(os.path.basename(meshFile))[0] + '.shp')
     else:
         gdf = nc2shp(ncFile, var, levels, conType, pathOut, epsgOut, vUnitOut, 
-                     vUnitIn, epsgIn, subDomain, dzFile = dzFile, zeroDif = zeroDif)
+                     vUnitIn, epsgIn, subDomain, epsgSubDom, dzFile = dzFile, zeroDif = zeroDif)
         mesh = gpd.read_file(os.path.splitext(meshFile)[0]+'.shp', ignore_geometry = True) # not fully sure if it is the best way
     
     if epsgOut == 4326:
@@ -742,6 +747,10 @@ def runStatic(ncFile, levels, epsgOut, pathOut,  grassVer, pathRasFiles, rasterF
     t5 = time.time()
     print(f'    Ready with postprocess: {(t5 - t4)/60:0.3f} min')
     print(f'Ready with static downscaling: {(t5 - t1)/60:0.3f} min')
+    
+    if finalOutToLatLon == True:
+        finalOut = os.path.join(pathaux, os.path.basename(pathOut)[:-4] + '_level_downscaled.tif') 
+        reprojectRas(finalOut, pathaux, epsgOut = 4326)
     print(f'Kalpana finished sucsesfully after: {(t5 - t0)/60:0.3f} min')
     print(f'Output files saved on: {pathaux}')
     
@@ -777,7 +786,7 @@ def meshRepLen2raster(fort14, epsgIn, epsgOut, pathOut, grassVer, pathRasFiles, 
     '''
     ## create gdf from fort14 file with elements as geometries
     t0 = time.time()
-    gdfMesh = fort14togdf(fort14, 4326, 6543)
+    gdfMesh = fort14togdf(fort14, epsgIn, epsgOut)
     print(f'fort14 to mesh: {(time.time() - t0)/60:0.3f} min')
     
     ## clip contours if requested
@@ -785,7 +794,7 @@ def meshRepLen2raster(fort14, epsgIn, epsgOut, pathOut, grassVer, pathRasFiles, 
         t0 = time.time()
         subDom = readSubDomain(subDomain, epsgIn)
         gdfMesh = gpd.clip(gdfMesh, subDom)
-        print(f'Clip mesh using subfomain: {(time.time() - t0)/60:0.3f} min')
+        print(f'Clip mesh using subdomain: {(time.time() - t0)/60:0.3f} min')
         
     ## export gdf as shapefile
     t0 = time.time()
@@ -826,7 +835,7 @@ def meshRepLen2raster(fort14, epsgIn, epsgOut, pathOut, grassVer, pathRasFiles, 
     ## export raster
     t0 = time.time()
     gs.run_command('r.out.gdal', input = os.path.splitext(os.path.basename(pathOut))[0], 
-                    flags = 'm', format = 'GTiff', nodata = -9999, overwrite = True,
+                    flags = 'mc', format = 'GTiff', nodata = -9999, overwrite = True,
                     output = os.path.splitext(pathOut)[0] + '.tif')
     print(f'        Mesh exported as raster: {(time.time() - t0)/60:0.2f} min')
     
