@@ -12,11 +12,15 @@ Kalpana was originally built by Rosemary Cyriac, and her efforts were aided by t
 Kalpana transforms the *ADICRC* *maxele.63.nc* file to a constant and higher resolution DEM considering small scale topographic/bathymetric features. The static downscaled method was developed by Nelson Tull, and the incorporated into Kalpana along with a new downscaling method by Carter Rucker. The details can be found in [this paper](https://link.springer.com/epdf/10.1007/s11069-021-04634-8?sharing_token=5GBxenc0qDVGHm3BGk6KhPe4RwlQNchNByi7wbcMAY69maaLpgXTBxca-OorPGWBn2w2ySSkXhIRhNeWoyNx8-ituX0UqAcNj_LDMh_kFz6sCpb5e882TbeHKiKpzRd_j4XfVH_6ONriheKYxx2CECQI07z23OD-pFrCALWfyVc=). The schematics below show the downscaling process.
 
 **Storm surge expansion**
+
 <img src="documentation/imgs/kalpana_extend.png" width="512"/>
 
 **Storm surge contraction**
+
 <img src="documentation/imgs/kalpana_shrink.png" width="512"/>
 
-Kalpana was rewritten in python 3 and using GeoPandas as the core python package by Tomás Cuevas.
+## Updated version
+
+Kalpana was updated to python 3 and upgraded by Tomás Cuevas as a part of his MSc research.
 Instructions for using Kalpana can be found in the examples folder.
 For any question, comment or suggestion please send an email to tomascuevas@gmail.com or open a *Issue*

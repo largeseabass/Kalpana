@@ -819,11 +819,7 @@ def nc2shp(ncFile, var, levels, conType, pathOut, epsgOut, vUnitOut='ft', vUnitI
     if subDomain is not None:
         t0 = time.time()
         subDom = readSubDomain(subDomain, epsgSubDom)
-        
-        if epsgSubDom != epsgIn:
-            subDom = subDom.to_crs(epsgIn)
-        
-        gdf = gpd.clip(gdf, subDom)
+        gdf = gpd.clip(gdf, subDom.to_crs(epsgIn))
         print(f'    Cliping contours based on mask: {(time.time() - t0)/60:0.3f} min')
     
     ## change vertical units if requested
@@ -859,7 +855,7 @@ def nc2shp(ncFile, var, levels, conType, pathOut, epsgOut, vUnitOut='ft', vUnitI
         mesh = mesh2gdf(nc, epsgIn, epsgOut)
         
         if subDomain is not None:
-            mesh = mesh.clip(mesh, subDom.to_crs(epsgOut))
+            mesh = gpd.clip(mesh, subDom.to_crs(epsgOut))
         
         mesh.to_file(os.path.join(os.path.dirname(pathOut), f'{meshName}.shp'))
         print(f'    Mesh exported: {(time.time() - t0)/60:0.3f} min')
