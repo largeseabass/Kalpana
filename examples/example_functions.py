@@ -6,6 +6,7 @@ from shapely.geometry import Point, LineString
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import matplotlib.colors as mcolors
 from matplotlib.lines import Line2D
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.cm as cm
@@ -93,11 +94,94 @@ def plot_netcdf(nc, var, levels, xlims = None, ylims = None,
 
     return ax
 
-def plot_gdf():
-    return None
+def plot_gdfmesh(gdf, var = 'zmean', xylims = None, 
+              ax = None, fig = None, fsize = (8,6), 
+              cbar = True, cmap = None, cbar_label = None, 
+              vmin = None, vmax = None, ticks = None, background_map = True):
+    ''' Funtion to create 2D plots from a GeoDataframe that represents a mesh.
+    Parameters
+        gdf: GeoDataframe object
+            usually created from fort14togdf()
+        var: string
+            name of the variable to plot. E.g. 'zeta', 'zeta_max'
+        xylims: list
+            limits of the plot
+            [minx, maxx, miny, maxy]
+        ax: matplotlib axis
+        fig: matplotlib figure
+        fsize: tuple
+            figure of the output size if fig and ax are not specified
+        cbar: boolean. Default False
+            True for adding colorbar
+        cmap: string
+            name of the cmap. recommended None to use custom colormap built into function
+        cb_label: string
+            colorbar label
+        ticks: list
+            colorbar ticks
+        background_map: boolean
+            True for using cartopy to plot a background map, doesn't work on the HPC
+    Returns
+        ax: matplotlib axes subplots
+    '''
 
+    if xylims is not None:
+        mygdf = gpd.clip(gdf, [xylims[0]-0.5,xylims[2]-0.5,xylims[1]+0.5,xylims[3]+0.5])
+    else:
+        mygdf = gdf
+
+    if ax == None:
+        fig, ax = plt.subplots(figsize = fsize, subplot_kw={'projection': ccrs.PlateCarree()}, constrained_layout=True)
+    gl = ax.gridlines(draw_labels=True, dms=True, x_inline=False, y_inline=False, alpha=0.5, linestyle='--')
+    gl.top_labels = False
+    gl.right_labels = False
+
+    if xylims is not None:
+        ax.set_xlim(xylims[0], xylims[1])
+        ax.set_ylim(xylims[2], xylims[3])
+
+    if background_map == True:
+        ax.add_feature(cfeature.LAND)
+        ax.add_feature(cfeature.COASTLINE,lw=0.25)
+        ax.add_feature(cfeature.LAKES)
+
+    vmin = vmin if vmin is not None else min(mygdf[var])
+    vmax = vmax if vmax is not None else max(mygdf[var])
+
+    if var == 'zmean':
+        if cmap == None:
+
+            cmap = merge_cmap(cmo.tools.crop_by_percent(cmo.ice, 30, 'max'), cmo.tools.crop_by_percent(cmo.speed_r, 25, 'max'))            
+            offset = mcolors.TwoSlopeNorm(vmin=vmin,vcenter=0,vmax=vmax)
+
+            mygdf.plot(column = var, legend = cbar, ax = ax, aspect = 'equal', cmap = cmap, norm = offset, vmin = vmin, vmax = vmax,
+                legend_kwds={'label': cbar_label if cbar_label != None else None, 'orientation': 'vertical', 'fraction': 0.046, 'pad': 0.04, 'ticks': ticks if ticks is not None else None},
+                )
+
+    else:
+        mygdf.plot(column = var, legend = cbar, ax = ax, aspect = 'equal', cmap = 'viridis' if cmap == None else cmap, edgecolor='black', linewidth = 0.2, vmin = vmin, vmax = vmax,
+                legend_kwds={'label': cbar_label if cbar_label != None else None, 'orientation': 'vertical', 'fraction': 0.046, 'pad': 0.04, 'ticks': ticks if ticks is not None else None},
+                )
+
+    return ax
+
+def merge_cmap(cmap1, cmap2):
+    '''
+    Combines two matplotlib colormaps into one continuous colormap.
+    '''
+    colors1 = cmap1(np.linspace(0, 1, 128))
+    colors2 = cmap2(np.linspace(0, 1, 128))
+    colors = np.vstack((colors1, colors2))
+    return mcolors.LinearSegmentedColormap.from_list('my_colormap', colors)
 
 ## specific functions for example visualizations
+
+def plot_mesh(gdf, var, xlims, ylims, title, cbar_label, vmin = None, vmax = None, ticks = None, background_map = True):
+    fig, ax = plt.subplots(figsize = (8,6), nrows = 1, ncols = 1, subplot_kw={'projection': ccrs.PlateCarree()}, constrained_layout=True)
+    plot_gdfmesh(gdf, var, xylims = xlims + ylims, ax = ax, fig = fig, fsize = (8,6), cbar_label = cbar_label, vmin = vmin, vmax = vmax, ticks = ticks, background_map = background_map)
+    ax.set_xlabel('Longitude [deg]')
+    ax.set_ylabel('Latitude [deg]')
+    fig.suptitle(title, fontsize = 16)
 
 def plot_maxele(nc, levels):
     
@@ -106,14 +190,13 @@ def plot_maxele(nc, levels):
     ax[0].set_xlabel('Longitude [deg]')
     ax[0].set_ylabel('Latitude [deg]')
     ax[0].set_title('Full Domain')
-    plot_netcdf(nc, 'zeta_max', levels, xlims = [-78.5, -75], ylims = [33.5, 37], ax = ax[1], fig = fig, cbar = True, cb_label = 'Max water level [m MSL]', ticks = np.arange(levels[0]-0.25, levels[1]+0.25, levels[2]), point_circle = Point(-76.8, 35.2))
+    plot_netcdf(nc, 'zeta_max', levels, xlims = [-78.5, -75], ylims = [33.5, 37], ax = ax[1], fig = fig, cbar = True, cb_label = 'Max water level [m MSL]', ticks = np.arange(levels[0]-0.25, levels[1]+0.25, levels[2]))
     ax[1].set_xlabel('Longitude [deg]')
     ax[1].set_ylabel('Latitude [deg]')
     ax[1].set_title('North Carolina')
     fig.suptitle('Maximum Water Levels (Florence)', fontsize = 16)
 
-
-
+## need to fix still
 
 def plot_polylines(gdf, levels):
     fig, ax = plt.subplots(figsize = (9, 4.5), nrows = 1, ncols = 2, subplot_kw={'projection': ccrs.PlateCarree()}, constrained_layout=True)
@@ -389,42 +472,3 @@ def plot_overlay(ncfile, levels, gdf):
         ax.plot(x, y, row['z'], color = 'k', linewidth = 0.8)
 
     ax.legend([Line2D([0], [0], color='k', lw=1.1)], ['Polyline Contour'], loc = 'lower right')
-
-def mesh_plot(gdf, column, bounds, title, cmap = None):
-    '''    
-    x and y inputs must be in same coordinate system as gdf
-    bounds = [minx, maxx, miny, maxy]
-    automatically chooses topo plot features if column is zmean, viridis otherwise
-    can override cmap with cmap
-    '''
-
-    trim = gdf[(gdf['centX'] <= bounds[0]-0.5) | (gdf['centX'] >= bounds[1]+0.5) | (gdf['centY'] <= bounds[2]-0.5) | (gdf['centY'] >= bounds[3]+0.5)].index
-    mygdf = gdf.drop(trim, inplace=False)
-
-    fig, ax = plt.subplots(figsize = (8, 6), subplot_kw={'projection': ccrs.PlateCarree()}, constrained_layout=True)
-
-    plt.xlabel('Longitude [deg]')
-    plt.ylabel('Latitude [deg]')
-    ax.set_xlim([bounds[0], bounds[1]])
-    ax.set_ylim([bounds[2], bounds[3]])
-    gl = ax.gridlines(draw_labels=True, dms=True, x_inline=False, y_inline=False, alpha=0.5, linestyle='--')
-    gl.top_labels = False
-    gl.right_labels = False
-    ax.add_feature(cfeature.LAND)
-    ax.add_feature(cfeature.COASTLINE,lw=0.25)
-    ax.add_feature(cfeature.LAKES)
-    ax.set_xlabel('Longitude [deg]')
-    ax.set_ylabel('Latitude [deg]')
-    fig.suptitle(title, fontsize = 16)
-
-    if column == 'zmean':
-        if cmap == None:
-            cmap = cmo.topo
-        # plot the mesh with elevations correlation with topo colormap
-        mygdf.plot(column = column, legend = True, ax = ax, aspect = 'equal', cmap = cmap, vmin = min(gdf['zmean']), vmax = -min(gdf['zmean']),
-                legend_kwds={'label': 'Element Area [square km]', 'orientation': 'vertical', 'fraction': 0.046, 'pad': 0.04},
-                )
-    else:
-        mygdf.plot(column = column, legend = True, ax = ax, aspect = 'equal', cmap = 'viridis', edgecolor='black', linewidth = 0.2,
-                legend_kwds={'label': 'Element Area [square km]', 'orientation': 'vertical', 'fraction': 0.046, 'pad': 0.04},
-                )
