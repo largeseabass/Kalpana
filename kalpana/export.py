@@ -92,7 +92,7 @@ def dzDatum(vdatum_directory, x, y, pathout, vdatumIn='tss',
     else:
         aux1 = aux0.split('/')
         aux2 = '/'.join(aux1[:-2])
-    areaFile = os.path.join(aux2, 'inputFiles', 'chesapeake_delaware_bay_area', areaFile)
+    areaFile = os.path.join(aux2, 'adds', 'vyperDatum', 'chesapeake_delaware_bay_area', areaFile)
     
     pol = gpd.read_file(areaFile)
     aux = pointsInsidePoly(list(zip(x, y)), list(pol.geometry[0].exterior.coords))
@@ -1011,7 +1011,7 @@ def kmlScreenOverlays(kml, colorbar=True, colorbarFile='tempColorbar.jpg', logo=
             #aux2 = '\\'.join(aux1[:-2])
             #print(aux2)
             #logoFile = os.path.join(aux2, 'documentation', 'logoForKmz', logoFile)
-            logoFile = aux0.parents[1]/'documentation'/'logoForKmz'/logoFile
+            logoFile = aux0.parents[1]/'adds'/'logoForKmz'/logoFile
         ## define new overlay
         screen2 = kml.newscreenoverlay(name = 'logo')
         screen2.icon.href = logoFile
