@@ -85,7 +85,7 @@ def dzDatum(vdatum_directory, x, y, pathout, vdatumIn='tss',
                 dataframe with the vertical difference between datums of the requested points.     
     '''
     ## load area where the epsg 7912 is needed
-    aux0 =r'C:\Users\tacuevas\github\Kalpana\kalpana\export.py'
+    aux0 =__file__
     if sys.platform == 'win32':
         aux1 = aux0.split('\\')
         aux2 = '\\'.join(aux1[:-2])
