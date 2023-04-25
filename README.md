@@ -1,4 +1,4 @@
-<img src="documentation/imgs/kalpana.PNG" width="1028"/>
+<img src="adds/imgs/kalpana.PNG" width="1028"/>
 
 Kalpana is a python module to convert *ADCIRC* output files to geospatial vector formats (shapefile or kmz) and to downscaled the maximum water elevation *maxele.6.nc*. 
 
