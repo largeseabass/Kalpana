@@ -62,7 +62,7 @@ def gdfChangeVerUnit(gdf, ini, out):
 
 def dzDatum(vdatum_directory, x, y, pathout, vdatumIn='tss', 
             vdatumOut='navd88', epsg1=6319, epsg2=7912,
-            areaFile="xGeoid20B_R1.gpkg"):
+            areaFile="xGeoid20B_R1.gpkg", pkg=None):
     ''' Get the vertical difference of two datums on a group of locations
         Parameters
             vdatum_directory: string
@@ -85,7 +85,7 @@ def dzDatum(vdatum_directory, x, y, pathout, vdatumIn='tss',
                 dataframe with the vertical difference between datums of the requested points.     
     '''
     ## load area where the epsg 7912 is needed
-    aux0 = __file__
+    aux0 =r'C:\Users\tacuevas\github\Kalpana\kalpana\export.py'
     if sys.platform == 'win32':
         aux1 = aux0.split('\\')
         aux2 = '\\'.join(aux1[:-2])
@@ -100,11 +100,11 @@ def dzDatum(vdatum_directory, x, y, pathout, vdatumIn='tss',
     zcero = np.zeros(len(x))
     ## load vyperdatum
     ### Valid tidal area
-    vp0 = VyperPoints(vdatum_directory = vdatum_directory, silent = True)
+    vp0 = pkg(vdatum_directory = vdatum_directory, silent = True)
     ## get the difference between vertical datums on the requested points
     vp0.transform_points((epsg1, vdatumIn), (epsg1, vdatumOut), x[~aux], y[~aux], z = zcero[~aux])
     ## call class
-    vp1 = VyperPoints(silent = True)
+    vp1 = pkg(silent = True)
     ## get the difference between vertical datums on the requested points
     vp1.transform_points((epsg2, vdatumIn), (epsg1, vdatumOut), x[aux], y[aux], z = zcero[aux])   
     ## define dataframe
