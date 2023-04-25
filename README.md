@@ -13,14 +13,14 @@ Kalpana transforms the *ADICRC* *maxele.63.nc* file to a constant and higher res
 
 **Storm surge expansion**
 
-<img src="documentation/imgs/kalpana_extend.png" width="512"/>
+<img src="adds/imgs/kalpana_extend.png" width="512"/>
 
 **Storm surge contraction**
 
-<img src="documentation/imgs/kalpana_shrink.png" width="512"/>
+<img src="adds/imgs/kalpana_shrink.png" width="512"/>
 
 ## Updated version
 
 Kalpana was updated to python 3 and upgraded by Tomás Cuevas as a part of his MSc research.
 Instructions for using Kalpana can be found in the examples folder.
-For any question, comment or suggestion please send an email to tomascuevas@gmail.com or open a *Issue*
+For any question, comment or suggestion please send an email to tomascuevas@gmail.com or open an *Issue*
