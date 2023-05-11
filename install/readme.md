@@ -1,7 +1,7 @@
 Setting up python for using Kalpana will depend on which of the features listed below you want to use. 
 For more detail go to https://ccht.ccee.ncsu.edu/ or to the paper (Rucker et al., 2021).
 
-(1) Exporting ADCIRC outputs as Shapefiles, GeoPackage or KMZ.
+(1) Exporting ADCIRC outputs as Shapefiles, GeoPackage or KMZ.<br>
 (2) Downscale ADCIRC maximum water elevation output to a finer resolution.
 
 
@@ -16,8 +16,8 @@ the specific versions.<br>
 
 If you prefer to install the packages using pip, you can use:<br>
 
-'conda create -n Kalpana python=3.9'<br>
-'pip install -r requirements.txt'<br>
+conda create -n Kalpana python=3.9<br>
+pip install -r requirements.txt<br>
 
 ## Feature (2)
 You need to have GRASS GIS installed (https://grass.osgeo.org/), versions >= 8.2 are supported.
@@ -30,7 +30,7 @@ For Windows you need to use the python installation that comes with GRASS GIS, a
 your system. For using the grass python.exe, you need to launch grass and then use the grass cmd. In this case you are can't use
 conda, so you need to install all the necessary dependencies using pip as shown below.
 
-'pip install -r requirements.txt'<br>
+pip install -r requirements.txt<br>
 
 If you want to use jupyter notebooks, you need to launch GRASS GIS and close the gui without closing the terminal.
 Then you need to do the following:
