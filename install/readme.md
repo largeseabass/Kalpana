@@ -9,7 +9,7 @@ Feature (1)
 Create a conda environment using the provided yml file. Change name and prefix (location to store python packages).
 To create a conda environment from a yml file and store the packages in a specified path, use:
 conda env create -f kalpana_env_H2.yml -p /path/to/the/environment.
-We provide two yml files, one has the specific versions of the package I use at the NCSU HPC, and the another one doesn't have 
+We provide two yml files, one has the specific versions of the package I use at the NCSU HPC, and the other one doesn't have 
 the specific versions.
 
 Feature (2)
