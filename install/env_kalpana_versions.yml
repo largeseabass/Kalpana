@@ -1,4 +1,4 @@
-name: /usr/local/usrapps/jcdietri/conda/env_kalpana_v1
+name:kalpana
 channels:
   - conda-forge
   - bioconda
